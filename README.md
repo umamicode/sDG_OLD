@@ -14,3 +14,6 @@ The code for **Causal Matching for Single Domain Generalization**.
 - First, run the command `sh run_base.sh 0 0`. The command will train the base network.
 - Then, run the command `sh run_my.sh 0 0`. The command will train the PDEN model.
 
+# Environment
+- All environment is saved in sdg.yaml.
+- Code is adjusted for use in python 3.9
