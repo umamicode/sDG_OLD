@@ -204,7 +204,6 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     #[TODO]- con_criterion add ReLIC
                     con_loss_adv = con_criterion(zall.clone().detach(), adv=True) #[TODO ]GCD
                     
-
                     if gen in ['cnn', 'hr']:
                         div_loss = (x_tgt-x2_tgt).abs().mean([1,2,3]).clamp(max=div_thresh).mean() # Constraint Generator Divergence
                         x_tgt_rec = g2_net(x_tgt)
@@ -284,9 +283,9 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 loss_list.append([src_cls_loss.item(), tgt_cls_loss.item(), con_loss.item(), con_loss_adv.item(), div_loss.item(), cyc_loss.item()])
             src_cls_loss, tgt_cls_loss, con_loss, con_loss_adv, div_loss, cyc_loss = np.mean(loss_list, 0)
             
-            # Test
+            # 测试
             src_net.eval()
-            # mnist、cifar test process synthia is different
+            # mnist、cifar的测试过程和 synthia不一样
             if data in ['mnist', 'mnist_t', 'mnistvis']:
                 teacc = evaluate(src_net, teloader)
             if best_acc < teacc:
@@ -298,7 +297,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
 
             t2 = time.time()
 
-            # Save Log for Tensorboard
+            # 保存日志
             print(f'epoch {epoch}, time {t2-t1:.2f}, src_cls {src_cls_loss:.4f} tgt_cls {tgt_cls_loss:.4f} con {con_loss:.4f} con_adv {con_loss_adv:.4f} div {div_loss:.4f} cyc {cyc_loss:.4f} /// teacc {teacc:2.2f}')
             writer.add_scalar('scalar/src_cls_loss', src_cls_loss, i_tgt*tgt_epochs+epoch)
             writer.add_scalar('scalar/tgt_cls_loss', tgt_cls_loss, i_tgt*tgt_epochs+epoch)
@@ -335,11 +334,11 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 rst = make_grid(torch.stack([l1, l3, l2]), 1, pad_value=128)
                 writer.add_image('im-mix', rst, i_tgt*tgt_epochs+epoch)
 
-        # Save trained G1(Generator)
+        # 保存训练好的G1
         torch.save({'g1':g1_net.state_dict()}, os.path.join(g1root, f'{i_tgt}.pkl'))
         g1_list.append(g1_net)
 
-        # Test the generalization effect of the i_tgt model
+        # 测试 i_tgt 模型的泛化效果
         from main_test_digit import evaluate_digit
         if data == 'mnist':
             pklpath = f'{svroot}/{i_tgt}-best.pkl'
