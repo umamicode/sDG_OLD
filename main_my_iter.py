@@ -201,7 +201,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     idx = np.random.randint(0, zsrc.size(1))
                     zall = torch.cat([z_tgt.unsqueeze(1), zsrc[:,idx:idx+1].detach()], dim=1)
                     #con_loss_adv = con_criterion(zall, adv=True) #[TODO ]GCD
-                    #[TODO]- con_criterion add ReLIC
+                    #[TODO]- con_criterion add ReLIC#
                     con_loss_adv = con_criterion(zall.clone().detach(), adv=True) #[TODO ]GCD
                     
 
