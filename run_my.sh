@@ -25,9 +25,10 @@ w_tgt=1.0
 
 gen=cnn
 interpolation=img
-n_tgt=10
+n_tgt=20
 max_tgt=19
 #For ReliC: Either (--relic / --no-relic)
+#tgt_epochs: How many epochs were trained on each target domain (author setting:30)
 
 #for w_div in 0.2 0.4 0.6 0.8 1.0 1.2 1.4 1.6 1.8 
 #for w_info in 0 0.1 0.2 0.5 1.0 #3.0 #0.001 0.005 0.01 0.02 0.03 0.04 0.05 0.1
