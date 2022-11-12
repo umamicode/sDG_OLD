@@ -14,7 +14,7 @@ import click
 import time
 import numpy as np
 
-from con_losses import SupConLoss
+from con_losses import SupConLoss, ReLICLoss
 from network import mnist_net, generator
 import data_loader
 from main_base import evaluate
@@ -53,7 +53,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         w_cls, w_info, w_cyc, w_div, div_thresh, w_tgt, interpolation, relic):
     settings = locals().copy()
     print(settings)
-    print("Relic:{relic}".format(relic= relic))
+    print("--Relic: {relic}\n".format(relic= relic))
     
     # Global Settings
     zdim = 10
@@ -111,12 +111,18 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         src_opt = optim.Adam(src_net.parameters(), lr=lr)
 
     cls_criterion = nn.CrossEntropyLoss()
-    con_criterion = SupConLoss()
-
+    ##########################################
+    #[TODO]- Add ReLIC LOSS (221112)
+    if relic==False:
+        con_criterion = SupConLoss()
+    elif relic==True:
+        con_criterion = ReLICLoss()
+    ##########################################    
+    
     # Train
     global_best_acc = 0
     for i_tgt in range(n_tgt):
-        print(f'target domain {i_tgt}')
+        print(f'target domain {i_tgt}/{n_tgt}')
 
         ####################### Learning ith target generator
         if lr_scheduler == 'cosine':
@@ -227,11 +233,19 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 # update src_net
                 zall = torch.cat([z_tgt.unsqueeze(1), zsrc], dim=1)
                 #con_loss = con_criterion(zall, adv=False) #[TODO] GCD
-                
+                '''
+                The original version caused error:
+                https://discuss.pytorch.org/t/83241
+                Fixed by clone&detaching tensors
+                '''
+                ##########################################
+                #[TODO]- Add ReLIC LOSS (221112)
                 if relic==False:
                     con_loss = con_criterion(zall.clone().detach(), adv=False) #[TODO] GCD
                 elif relic== True:
                     con_loss = con_criterion(zall.clone().detach(), adv=False) #[TODO] GCD
+                ##########################################
+
                 loss = src_cls_loss + w_tgt*con_loss + w_tgt*tgt_cls_loss # w_tgt default 1.0
                 src_opt.zero_grad()
                 if flag_fixG:

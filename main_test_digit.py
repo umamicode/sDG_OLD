@@ -25,16 +25,16 @@ def main(gpu, modelpath, svpath, channels):
 def evaluate_digit(gpu, modelpath, svpath, channels=3):
     os.environ['CUDA_VISIBLE_DEVICES'] = gpu
 
-    # 加载模型
+    # Load Model
     if channels == 3:
         cls_net = mnist_net.ConvNet().cuda()
     elif channels == 1:
         cls_net = mnist_net.ConvNet(imdim=channels).cuda()
-    saved_weight = torch.load(modelpath)
+    saved_weight = torch.load(modelpath) #dict(saved_weight) only has cls_net as key
     cls_net.load_state_dict(saved_weight['cls_net'])
     #cls_net.eval()
 
-    # 测试
+    # Test
     str2fun = { 
         'mnist': data_loader.load_mnist,
         'mnist_m': data_loader.load_mnist_m,

@@ -25,8 +25,9 @@ w_tgt=1.0
 
 gen=cnn
 interpolation=img
-n_tgt=20
+n_tgt=10
 max_tgt=19
+#For ReliC: Either (--relic / --no-relic)
 
 #for w_div in 0.2 0.4 0.6 0.8 1.0 1.2 1.4 1.6 1.8 
 #for w_info in 0 0.1 0.2 0.5 1.0 #3.0 #0.001 0.005 0.01 0.02 0.03 0.04 0.05 0.1
@@ -35,8 +36,8 @@ max_tgt=19
 svroot=saved-digit/${gen}_${interpolation}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_run${2}
 
 # step1
-python3 main_my_iter.py --gpu $1 --data mnist --gen $gen --relic --interpolation $interpolation --n_tgt ${n_tgt} --tgt_epochs 30 --tgt_epochs_fixg 15 --nbatch 100 --batchsize 128 --lr 1e-4 --w_cls $w_cls --w_cyc $w_cyc --w_info $w_info --w_div $w_div --div_thresh ${div_thresh} --w_tgt $w_tgt --ckpt saved-digit/base_run0/best.pkl --svroot ${svroot}
-python3 main_test_digit.py --gpu $1 --modelpath ${svroot}/${max_tgt}-best.pkl --svpath ${svroot}/test.log
+python3 main_my_iter.py --gpu $1 --data mnist --gen $gen --relic --interpolation $interpolation --n_tgt ${n_tgt} --tgt_epochs 30 --tgt_epochs_fixg 15 --nbatch 100 --batchsize 128 --lr 1e-4 --w_cls $w_cls --w_cyc $w_cyc --w_info $w_info --w_div $w_div --div_thresh ${div_thresh} --w_tgt $w_tgt --ckpt saved-digit/base_run0/best.pkl --svroot ${svroot} 
+python3 main_test_digit.py --gpu $1 --modelpath ${svroot}/${max_tgt}-best.pkl --svpath ${svroot}/test.log 
 
 #done
 

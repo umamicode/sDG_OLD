@@ -1,7 +1,3 @@
-"""
-Author: Yonglong Tian (yonglong@mit.edu)
-Date: May 07, 2020
-"""
 from __future__ import print_function
 
 import torch
@@ -111,7 +107,7 @@ class ReLICLoss(nn.Module):
     It also supports the unsupervised contrastive loss in SimCLR"""
     def __init__(self, temperature=0.07, contrast_mode='all',
                  base_temperature=0.07, device=None):
-        super(SupConLoss, self).__init__()
+        super(ReLICLoss, self).__init__()
         self.temperature = temperature
         self.contrast_mode = contrast_mode
         self.base_temperature = base_temperature
