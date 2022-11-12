@@ -46,13 +46,15 @@ HOME = os.environ['HOME']
 @click.option('--div_thresh', type=float, default=0.1, help='div_loss threshold')
 @click.option('--w_tgt', type=float, default=1.0, help='target domain sample update tasknet intensity control')
 @click.option('--interpolation', type=str, default='pixel', help='Interpolate between the source domain and the generated domain to get a new domain, two ways：img/pixel')
+@click.option('--relic/--no-relic', default=False)
 
 def experiment(gpu, data, ntr, gen, gen_mode, \
         n_tgt, tgt_epochs, tgt_epochs_fixg, nbatch, batchsize, lr, lr_scheduler, svroot, ckpt, \
-        w_cls, w_info, w_cyc, w_div, div_thresh, w_tgt, interpolation):
+        w_cls, w_info, w_cyc, w_div, div_thresh, w_tgt, interpolation, relic):
     settings = locals().copy()
     print(settings)
-
+    print("Relic:{relic}".format(relic= relic))
+    
     # Global Settings
     zdim = 10
     os.environ['CUDA_VISIBLE_DEVICES'] = gpu
@@ -225,8 +227,11 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 # update src_net
                 zall = torch.cat([z_tgt.unsqueeze(1), zsrc], dim=1)
                 #con_loss = con_criterion(zall, adv=False) #[TODO] GCD
-                con_loss = con_criterion(zall.clone().detach(), adv=False) #[TODO] GCD
-
+                
+                if relic==False:
+                    con_loss = con_criterion(zall.clone().detach(), adv=False) #[TODO] GCD
+                elif relic== True:
+                    con_loss = con_criterion(zall.clone().detach(), adv=False) #[TODO] GCD
                 loss = src_cls_loss + w_tgt*con_loss + w_tgt*tgt_cls_loss # w_tgt default 1.0
                 src_opt.zero_grad()
                 if flag_fixG:
