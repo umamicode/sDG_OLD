@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class SupConLoss(nn.Module):
@@ -55,9 +56,9 @@ class SupConLoss(nn.Module):
             mask = mask.float().to(device)
 
         contrast_count = features.shape[1]
-        contrast_feature = torch.cat(torch.unbind(features, dim=1), dim=0)
+        contrast_feature = torch.cat(torch.unbind(features, dim=1), dim=0) #unbind to create n views of (k*k) tensors and concat to create (n*k) tensor
         if self.contrast_mode == 'one':
-            anchor_feature = features[:, 0]
+            anchor_feature = features[:, 0] #first k*k
             anchor_count = 1
         elif self.contrast_mode == 'all':
             anchor_feature = contrast_feature
@@ -65,7 +66,7 @@ class SupConLoss(nn.Module):
         else:
             raise ValueError('Unknown mode: {}'.format(self.contrast_mode))
 
-        # compute logits
+        # compute logits (shape: torch.Size([256, 256])
         anchor_dot_contrast = torch.div(
             torch.matmul(anchor_feature, contrast_feature.T),
             self.temperature)
@@ -132,13 +133,13 @@ class ReLICLoss(nn.Module):
             device = (torch.device('cuda')
                   if features.is_cuda
                   else torch.device('cpu'))
-
+        
         if len(features.shape) < 3:
             raise ValueError('`features` needs to be [bsz, n_views, ...],'
                              'at least 3 dimensions are required')
         if len(features.shape) > 3:
             features = features.view(features.shape[0], features.shape[1], -1)
-
+        
         batch_size = features.shape[0]
         if labels is not None and mask is not None:
             raise ValueError('Cannot define both `labels` and `mask`')
@@ -163,7 +164,7 @@ class ReLICLoss(nn.Module):
         else:
             raise ValueError('Unknown mode: {}'.format(self.contrast_mode))
 
-        # compute logits
+        # compute logits (shape: torch.Size([256, 256])
         anchor_dot_contrast = torch.div(
             torch.matmul(anchor_feature, contrast_feature.T),
             self.temperature)
@@ -195,9 +196,60 @@ class ReLICLoss(nn.Module):
 
         # loss
         loss = - (self.temperature / self.base_temperature) * mean_log_prob_pos
-        loss = loss.view(anchor_count, batch_size).mean()
+        loss = loss.view(anchor_count, batch_size).mean() #contrastive loss
 
         return loss
+
+class ReLIC_Loss(nn.Module):
+
+    def __init__(self, normalize=True, temperature=1.0, alpha=0.5):
+        super(ReLIC_Loss, self).__init__()
+        self.normalize = normalize
+        self.temperature = temperature
+        self.alpha = alpha
+
+    def forward(self, zi, zj, z_orig):
+        bs = zi.shape[0]
+        labels = torch.zeros((2*bs,)).long().to(zi.device)
+        mask = torch.ones((bs, bs), dtype=bool).fill_diagonal_(0)
+
+        if self.normalize:
+            zi_norm = F.normalize(zi, p=2, dim=-1)
+            zj_norm = F.normalize(zj, p=2, dim=-1)
+            zo_norm = F.normalize(z_orig, p=2, dim=-1)
+        else:
+            zi_norm = zi
+            zj_norm = zj
+            zo_norm = z_orig
+
+        logits_ii = torch.mm(zi_norm, zi_norm.t()) / self.temperature
+        logits_ij = torch.mm(zi_norm, zj_norm.t()) / self.temperature
+        logits_ji = torch.mm(zj_norm, zi_norm.t()) / self.temperature
+        logits_jj = torch.mm(zj_norm, zj_norm.t()) / self.temperature
+
+        logits_ij_pos = logits_ij[torch.logical_not(mask)]                                          # Shape (N,)
+        logits_ji_pos = logits_ji[torch.logical_not(mask)]                                          # Shape (N,)
+        logits_ii_neg = logits_ii[mask].reshape(bs, -1)                                             # Shape (N, N-1)
+        logits_ij_neg = logits_ij[mask].reshape(bs, -1)                                             # Shape (N, N-1)
+        logits_ji_neg = logits_ji[mask].reshape(bs, -1)                                             # Shape (N, N-1)
+        logits_jj_neg = logits_jj[mask].reshape(bs, -1)                                             # Shape (N, N-1)
+
+        pos = torch.cat((logits_ij_pos, logits_ji_pos), dim=0).unsqueeze(1)                         # Shape (2N, 1)
+        neg_i = torch.cat((logits_ii_neg, logits_ij_neg), dim=1)                                    # Shape (N, 2N-2)
+        neg_j = torch.cat((logits_ji_neg, logits_jj_neg), dim=1)                                    # Shape (N, 2N-2)
+        neg = torch.cat((neg_i, neg_j), dim=0)                                                      # Shape (2N, 2N-2)
+
+        logits = torch.cat((pos, neg), dim=1)                                                       # Shape (2N, 2N-1)
+        contrastive_loss = F.cross_entropy(logits, labels)
+
+        logits_io = torch.mm(zi_norm, zo_norm.t()) / self.temperature
+        logits_jo = torch.mm(zj_norm, zo_norm.t()) / self.temperature
+        probs_io = F.softmax(logits_io[torch.logical_not(mask)], -1)
+        probs_jo = F.log_softmax(logits_jo[torch.logical_not(mask)], -1)
+        kl_div_loss = F.kl_div(probs_io, probs_jo, log_target=True, reduction="sum")
+        return contrastive_loss + self.alpha * kl_div_loss
+
+    
 
 
 if __name__=='__main__':

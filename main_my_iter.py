@@ -211,10 +211,16 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     idx = np.random.randint(0, zsrc.size(1))
                     zall = torch.cat([z_tgt.unsqueeze(1), zsrc[:,idx:idx+1].detach()], dim=1)
                     #con_loss_adv = con_criterion(zall, adv=True) #[TODO ]GCD
-                    #[TODO]- con_criterion add ReLIC#
-                    con_loss_adv = con_criterion(zall.clone().detach(), adv=True) #[TODO ]GCD
                     
-
+                    ##########################################
+                    #[TODO]- Add ReLIC LOSS for Generator(G1) (221112)
+                    # Takes {zall = torch.cat([z_tgt.unsqueeze(1), zsrc[:,idx:idx+1].detach()], dim=1)} as input.
+                    if relic ==False:
+                        con_loss_adv = con_criterion(zall.clone().detach(), adv=True) #[TODO ]GCD
+                    elif relic == True:
+                        con_loss_adv = con_criterion(zall.clone().detach(), adv=True) #[TODO ]GCD
+                    ##########################################
+                    
                     if gen in ['cnn', 'hr']:
                         div_loss = (x_tgt-x2_tgt).abs().mean([1,2,3]).clamp(max=div_thresh).mean() # Constraint Generator Divergence
                         x_tgt_rec = g2_net(x_tgt)
@@ -233,7 +239,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
 
                 ###[TODO]- F(src_net): CHANGE ORDER WITH G###
                 # update src_net
-                zall = torch.cat([z_tgt.unsqueeze(1), zsrc], dim=1)
+                zall = torch.cat([z_tgt.unsqueeze(1), zsrc], dim=1) #torch.Size([128, num_generated_domains, 128])
+                
                 #con_loss = con_criterion(zall, adv=False) #[TODO] GCD
                 '''
                 The original version caused error:
@@ -241,7 +248,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 Fixed by clone&detaching tensors
                 '''
                 ##########################################
-                #[TODO]- Add ReLIC LOSS (221112)
+                #[TODO]- Add ReLIC LOSS for Task Model(src_net) (221112)
+                # Takes zall = torch.cat([z_tgt.unsqueeze(1), zsrc], dim=1) as input.
                 if relic==False:
                     con_loss = con_criterion(zall.clone().detach(), adv=False) #[TODO] GCD
                 elif relic== True:
