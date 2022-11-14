@@ -104,8 +104,8 @@ class SupConLoss(nn.Module):
 
 #[TODO] - add ReLIC Loss
 class ReLICLoss(nn.Module):
-    """Supervised Contrastive Learning: https://arxiv.org/pdf/2004.11362.pdf.
-    It also supports the unsupervised contrastive loss in SimCLR"""
+    """Supervised Contrastive Learning with ReLIC.
+    It also supports the unsupervised contrastive loss in ReLIC"""
     def __init__(self, temperature=0.07, contrast_mode='all',
                  base_temperature=0.07, device=None):
         super(ReLICLoss, self).__init__()
@@ -116,8 +116,8 @@ class ReLICLoss(nn.Module):
 
     def forward(self, features, labels=None, mask=None, adv=False):
         """Compute loss for model. If both `labels` and `mask` are None,
-        it degenerates to SimCLR unsupervised loss:
-        https://arxiv.org/pdf/2002.05709.pdf
+        it degenerates to self-supervised ReLIC loss:
+        https://arxiv.org/pdf/2010.07922.pdf
 
         Args:
             features: hidden vector of shape [bsz, n_views, ...].
@@ -133,13 +133,13 @@ class ReLICLoss(nn.Module):
             device = (torch.device('cuda')
                   if features.is_cuda
                   else torch.device('cpu'))
-        
+
         if len(features.shape) < 3:
             raise ValueError('`features` needs to be [bsz, n_views, ...],'
                              'at least 3 dimensions are required')
         if len(features.shape) > 3:
             features = features.view(features.shape[0], features.shape[1], -1)
-        
+
         batch_size = features.shape[0]
         if labels is not None and mask is not None:
             raise ValueError('Cannot define both `labels` and `mask`')
@@ -154,9 +154,9 @@ class ReLICLoss(nn.Module):
             mask = mask.float().to(device)
 
         contrast_count = features.shape[1]
-        contrast_feature = torch.cat(torch.unbind(features, dim=1), dim=0)
+        contrast_feature = torch.cat(torch.unbind(features, dim=1), dim=0) #unbind to create n views of (k*k) tensors and concat to create (n*k) tensor
         if self.contrast_mode == 'one':
-            anchor_feature = features[:, 0]
+            anchor_feature = features[:, 0] #first k*k
             anchor_count = 1
         elif self.contrast_mode == 'all':
             anchor_feature = contrast_feature
@@ -196,10 +196,10 @@ class ReLICLoss(nn.Module):
 
         # loss
         loss = - (self.temperature / self.base_temperature) * mean_log_prob_pos
-        loss = loss.view(anchor_count, batch_size).mean() #contrastive loss
+        loss = loss.view(anchor_count, batch_size).mean()  # This is the contrastive loss. 
 
         return loss
-
+'''
 class ReLIC_Loss(nn.Module):
 
     def __init__(self, normalize=True, temperature=1.0, alpha=0.5):
@@ -248,7 +248,7 @@ class ReLIC_Loss(nn.Module):
         probs_jo = F.log_softmax(logits_jo[torch.logical_not(mask)], -1)
         kl_div_loss = F.kl_div(probs_io, probs_jo, log_target=True, reduction="sum")
         return contrastive_loss + self.alpha * kl_div_loss
-
+'''
     
 
 

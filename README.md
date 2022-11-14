@@ -3,7 +3,7 @@
 The code for **Causal Matching for Single Domain Generalization**.
 
 ### Reference Code
-- We used the code from this Repo: https://github.com/lileicv/PDEN 
+- Reference: https://github.com/lileicv/PDEN 
 
 ### Dataset
 

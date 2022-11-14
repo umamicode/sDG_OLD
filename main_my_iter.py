@@ -98,6 +98,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         return g1_net, g2_net, g1_opt, g2_opt
 
     g1_list = []
+    ### Load Model ([TODO]- Add Mutual Information Regularization Method for Pretrained Models)
     if data in ['mnist', 'mnist_t']:
         src_net = mnist_net.ConvNet().cuda()
         saved_weight = torch.load(ckpt)
@@ -180,11 +181,11 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 
 
                 # forward
-                p1_src, z1_src = src_net(x, mode='train') #torch.Size([128, 128])
+                p1_src, z1_src = src_net(x, mode='train') #z1- torch.Size([128, 128])
                 if len(g1_list)>0: # if generator exists
-                    p2_src, z2_src = src_net(x2_src, mode='train') #torch.Size([128, 128])
-                    p3_mix, z3_mix = src_net(x3_mix, mode='train') #torch.Size([128, 128])
-                    zsrc = torch.cat([z1_src.unsqueeze(1), z2_src.unsqueeze(1), z3_mix.unsqueeze(1)], dim=1) #torch.Size([128, 3, 128])
+                    p2_src, z2_src = src_net(x2_src, mode='train') #z2- torch.Size([128, 128])
+                    p3_mix, z3_mix = src_net(x3_mix, mode='train') #z3- torch.Size([128, 128])
+                    zsrc = torch.cat([z1_src.unsqueeze(1), z2_src.unsqueeze(1), z3_mix.unsqueeze(1)], dim=1) #zsrc- torch.Size([128, 3, 128])
                     
                     #src_cls_loss = cls_criterion(p1_src, y) + cls_criterion(p2_src, y) + cls_criterion(p3_mix, y)
                     src_cls_loss = cls_criterion(p1_src, y) + cls_criterion(p2_src, y) + cls_criterion(p3_mix, y)  #{TODO} GreatCloneDetach GCD
