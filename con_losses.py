@@ -182,9 +182,10 @@ class ReLICLoss(nn.Module):
             torch.arange(batch_size * anchor_count).view(-1, 1).to(device),
             0
         )
-        mask = mask * logits_mask
+        mask = mask * logits_mask #Mask Shape: torch.Size([256, 256])
         # compute log_prob
-        exp_logits = torch.exp(logits) * logits_mask
+        exp_logits = torch.exp(logits) * logits_mask #Exp Logits Shape: torch.Size([256, 256])
+        
         #log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
         if adv:
             log_prob = torch.log( 1- exp_logits / (exp_logits.sum(1, keepdim=True)+1e-6) - 1e-6)

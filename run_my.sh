@@ -25,6 +25,7 @@ w_tgt=1.0
 
 gen=cnn
 interpolation=img
+backbone=resnet18
 n_tgt=20
 max_tgt=19
 #For ReliC: Either (--relic / --no-relic)
@@ -35,10 +36,13 @@ max_tgt=19
 #for w_cyc in 40 50 
 #do
 svroot=saved-digit/${gen}_${interpolation}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_run${2}
+#added backbone to svroot
+#svroot=saved-digit/${gen}_${interpolation}_${backbone}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_run${2}
+
 
 # step1
-python3 main_my_iter.py --gpu $1 --data mnist --gen $gen --relic --interpolation $interpolation --n_tgt ${n_tgt} --tgt_epochs 30 --tgt_epochs_fixg 15 --nbatch 100 --batchsize 128 --lr 1e-4 --w_cls $w_cls --w_cyc $w_cyc --w_info $w_info --w_div $w_div --div_thresh ${div_thresh} --w_tgt $w_tgt --ckpt saved-digit/base_run0/best.pkl --svroot ${svroot} 
-python3 main_test_digit.py --gpu $1 --modelpath ${svroot}/${max_tgt}-best.pkl --svpath ${svroot}/test.log 
+python3 main_my_iter.py --gpu $1 --data mnist --gen $gen --relic --backbone ${backbone} --interpolation $interpolation --n_tgt ${n_tgt} --tgt_epochs 30 --tgt_epochs_fixg 15 --nbatch 100 --batchsize 128 --lr 1e-4 --w_cls $w_cls --w_cyc $w_cyc --w_info $w_info --w_div $w_div --div_thresh ${div_thresh} --w_tgt $w_tgt --ckpt saved-digit/base_run0/best.pkl --svroot ${svroot} 
+python3 main_test_digit.py --gpu $1 --modelpath ${svroot}/${max_tgt}-best.pkl --svpath ${svroot}/test.log --backbone ${backbone} 
 
 #done
 

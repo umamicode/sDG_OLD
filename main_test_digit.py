@@ -9,7 +9,10 @@ import numpy as np
 import click
 import pandas as pd
 
-from network import mnist_net
+from network import mnist_net, res_net
+#{TODO} Added ResNet
+from network.modules import get_resnet
+
 import data_loader
 from main_base import evaluate
 from utils import log
@@ -19,17 +22,30 @@ from utils import log
 @click.option('--modelpath', type=str, default='saved/best.pkl')
 @click.option('--svpath', type=str, default=None, help='Path to SaveLogs')
 @click.option('--channels', type=int, default=3)
-def main(gpu, modelpath, svpath, channels):
-    evaluate_digit(gpu, modelpath, svpath, channels)
+@click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50')
+
+def main(gpu, modelpath, svpath, backbone, channels):
+    evaluate_digit(gpu, modelpath, svpath, backbone, channels)
     
-def evaluate_digit(gpu, modelpath, svpath, channels=3):
+def evaluate_digit(gpu, modelpath, svpath, backbone, channels=3):
     os.environ['CUDA_VISIBLE_DEVICES'] = gpu
 
     # Load Model
-    if channels == 3:
-        cls_net = mnist_net.ConvNet().cuda()
-    elif channels == 1:
-        cls_net = mnist_net.ConvNet(imdim=channels).cuda()
+    if backbone== 'custom':
+        if channels == 3:
+            cls_net = mnist_net.ConvNet().cuda()
+        elif channels == 1:
+            cls_net = mnist_net.ConvNet(imdim=channels).cuda()
+    elif backbone in ['resnet18','resnet50']:
+        if channels == 3:
+            encoder = get_resnet(backbone, pretrained= False)
+            n_features = encoder.fc.in_features
+            cls_net = res_net.ConvNet(encoder, 128, n_features).cuda()
+        elif channels == 1:
+            encoder = get_resnet(backbone, pretrained= False)
+            n_features = encoder.fc.in_features
+            cls_net = res_net.ConvNet(encoder, 128, n_features, imdim=channels).cuda()
+
     saved_weight = torch.load(modelpath) #dict(saved_weight) only has cls_net as key
     cls_net.load_state_dict(saved_weight['cls_net'])
     #cls_net.eval()

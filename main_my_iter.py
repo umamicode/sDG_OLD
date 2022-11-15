@@ -9,13 +9,20 @@ from torchvision.utils import make_grid
 import torchvision.transforms as transforms
 from tensorboardX import SummaryWriter
 
+#ReLIC
+#[TODO]
+from network.modules import ReLIC_Loss, get_resnet
+from network.modules.transformations import TransformsRelic
+from network.modules.sync_batchnorm import convert_model
+
+
 import os
 import click
 import time
 import numpy as np
 
 from con_losses import SupConLoss, ReLICLoss
-from network import mnist_net, generator
+from network import mnist_net,res_net, relic_net, generator
 import data_loader
 from main_base import evaluate
 
@@ -47,10 +54,12 @@ HOME = os.environ['HOME']
 @click.option('--w_tgt', type=float, default=1.0, help='target domain sample update tasknet intensity control')
 @click.option('--interpolation', type=str, default='pixel', help='Interpolate between the source domain and the generated domain to get a new domain, two ways：img/pixel')
 @click.option('--relic/--no-relic', default=False)
+@click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50')
+
 
 def experiment(gpu, data, ntr, gen, gen_mode, \
         n_tgt, tgt_epochs, tgt_epochs_fixg, nbatch, batchsize, lr, lr_scheduler, svroot, ckpt, \
-        w_cls, w_info, w_cyc, w_div, div_thresh, w_tgt, interpolation, relic):
+        w_cls, w_info, w_cyc, w_div, div_thresh, w_tgt, interpolation, relic, backbone):
     settings = locals().copy()
     print(settings)
     print("--Relic: {relic}\n".format(relic= relic))
@@ -100,16 +109,32 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     g1_list = []
     ### Load Model ([TODO]- Add Mutual Information Regularization Method for Pretrained Models)
     if data in ['mnist', 'mnist_t']:
-        src_net = mnist_net.ConvNet().cuda()
-        saved_weight = torch.load(ckpt)
-        src_net.load_state_dict(saved_weight['cls_net'])
-        src_opt = optim.Adam(src_net.parameters(), lr=lr)
-
+        if backbone == 'custom':
+            src_net = mnist_net.ConvNet().cuda()
+            saved_weight = torch.load(ckpt)
+            src_net.load_state_dict(saved_weight['cls_net'])
+            src_opt = optim.Adam(src_net.parameters(), lr=lr)
+        elif backbone in ['resnet18','resnet50']:
+            encoder = get_resnet(backbone, pretrained= True) # Pretrained Backbone default as True
+            n_features = encoder.fc.in_features
+            src_net= res_net.ConvNet(encoder, 128, n_features).cuda() #projection_dim/ n_features
+            src_opt = optim.Adam(src_net.parameters(), lr=lr)
     elif data == 'mnistvis':
         src_net = mnist_net.ConvNetVis().cuda()
         saved_weight = torch.load(ckpt)
         src_net.load_state_dict(saved_weight['cls_net'])
         src_opt = optim.Adam(src_net.parameters(), lr=lr)
+    ################
+    #[TODO] -ResNet
+        '''
+
+        encoder = get_resnet(backbone, pretrained= True) # Pretrained Backbone default as True
+        n_features = encoder.fc.in_features
+        src_net= res_net.ConvNet(encoder, 128, n_features) #projection_dim/ n_features
+        src_opt = optim.Adam(src_net.parameters(), lr=lr)
+        '''
+    ################
+        
 
     cls_criterion = nn.CrossEntropyLoss()
     ##########################################
@@ -373,7 +398,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         from main_test_digit import evaluate_digit
         if data == 'mnist':
             pklpath = f'{svroot}/{i_tgt}-best.pkl'
-            evaluate_digit(gpu, pklpath, pklpath+'.test')
+            #{TODO}- added backbone param
+            evaluate_digit(gpu, pklpath, pklpath+'.test', backbone= backbone)
 
     writer.close()
 
