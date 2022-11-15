@@ -117,7 +117,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         elif backbone in ['resnet18','resnet50']:
             encoder = get_resnet(backbone, pretrained= False) # Pretrained Backbone default as True - [TODO]- wait, if we train base, False would be right
             n_features = encoder.fc.in_features
-            src_net= res_net.ConvNet(encoder, 128, n_features).cuda() #projection_dim/ n_features
+            output_dim = 10 #{TODO}- output
+            src_net= res_net.ConvNet(encoder, 128, n_features,output_dim).cuda() #projection_dim/ n_features
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
@@ -129,7 +130,6 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     ################
     #[TODO] -ResNet
         '''
-
         encoder = get_resnet(backbone, pretrained= True) # Pretrained Backbone default as True
         n_features = encoder.fc.in_features
         src_net= res_net.ConvNet(encoder, 128, n_features) #projection_dim/ n_features

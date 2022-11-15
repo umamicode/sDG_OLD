@@ -40,11 +40,13 @@ def evaluate_digit(gpu, modelpath, svpath, backbone, channels=3):
         if channels == 3:
             encoder = get_resnet(backbone, pretrained= False)
             n_features = encoder.fc.in_features
-            cls_net = res_net.ConvNet(encoder, 128, n_features).cuda()
+            output_dim = 10 #{TODO}- output
+            cls_net = res_net.ConvNet(encoder, 128, n_features, output_dim).cuda()
         elif channels == 1:
             encoder = get_resnet(backbone, pretrained= False)
             n_features = encoder.fc.in_features
-            cls_net = res_net.ConvNet(encoder, 128, n_features, imdim=channels).cuda()
+            output_dim = 10
+            cls_net = res_net.ConvNet(encoder, 128, n_features, output_dim, imdim=channels).cuda()
 
     saved_weight = torch.load(modelpath) #dict(saved_weight) only has cls_net as key
     cls_net.load_state_dict(saved_weight['cls_net'])

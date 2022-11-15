@@ -14,7 +14,7 @@ torch.autograd.set_detect_anomaly(True)
 class ConvNet(nn.Module):
     ''' The network structure is consistent with the SimCLR method
      '''
-    def __init__(self, encoder, projection_dim, n_features, imdim=3):
+    def __init__(self, encoder, projection_dim, n_features, output_dim, imdim=3):
         super(ConvNet, self).__init__()
         '''
         self.conv1 = nn.Conv2d(imdim, 64, kernel_size=5, stride=1, padding=0)
@@ -31,12 +31,13 @@ class ConvNet(nn.Module):
         self.encoder= encoder
         self.projection_dim= projection_dim
         self.n_features= n_features
+        self.output_dim= output_dim
         
         # Replace the fc layer with an Identity function
         self.encoder.fc = Identity()
         
-        self.cls_head_src = nn.Linear(self.n_features, 10)
-        self.cls_head_tgt = nn.Linear(self.n_features, 10)
+        self.cls_head_src = nn.Linear(self.n_features, self.output_dim)
+        self.cls_head_tgt = nn.Linear(self.n_features, self.output_dim)
         self.pro_head = nn.Linear(self.n_features, self.projection_dim)
 
     def forward(self, x, mode='test'):
