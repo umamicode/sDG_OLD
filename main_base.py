@@ -14,12 +14,19 @@ from torchvision.utils import make_grid
 import torchvision.transforms as transforms
 from tensorboardX import SummaryWriter
 
+#PRISM
+#[TODO]
+from network.modules import ReLIC_Loss, get_resnet
+from network.modules.transformations import TransformsRelic
+from network.modules.sync_batchnorm import convert_model
+
+
 import os
 import click
 import time
 import numpy as np
 
-from network import mnist_net
+from network import mnist_net, res_net
 import data_loader
 
 HOME = os.environ['HOME']
@@ -36,7 +43,9 @@ HOME = os.environ['HOME']
 @click.option('--lr', type=float, default=1e-3)
 @click.option('--lr_scheduler', type=str, default='none', help='Learning Weight Decay')
 @click.option('--svroot', type=str, default='./saved', help='Project file save path')
-def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr, lr_scheduler, svroot):
+@click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50')
+
+def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr, lr_scheduler, svroot, backbone):
     settings = locals().copy()
     print(settings)
 
@@ -57,16 +66,24 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
         trloader = DataLoader(trset, batch_size=batchsize, num_workers=8, \
                 sampler=RandomSampler(trset, True, nbatch*batchsize))
         teloader = DataLoader(teset, batch_size=batchsize, num_workers=8, shuffle=False)
-        cls_net = mnist_net.ConvNet().cuda()
-        cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
-    
+        
+        if backbone == 'custom':
+            cls_net = mnist_net.ConvNet().cuda()
+            cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
+        elif backbone in ['resnet18','resnet50']:
+            encoder = get_resnet(backbone, pretrained= True) # Pretrained Backbone default as True
+            n_features = encoder.fc.in_features
+            cls_net= res_net.ConvNet(encoder, 128, n_features).cuda() #projection_dim/ n_features
+            cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
+
     elif data == 'mnistvis':
         trset = data_loader.load_mnist('train')
         teset = data_loader.load_mnist('test')
         trloader = DataLoader(trset, batch_size=batchsize, num_workers=8, \
                 sampler=RandomSampler(trset, True, nbatch*batchsize))
         teloader = DataLoader(teset, batch_size=batchsize, num_workers=8, shuffle=False)
-        cls_net= mnist_net.ConvNetVis().cuda()
+        #[TODO] - add resnet option here
+        cls_net= mnist_net.ConvNetVis().cuda() 
         cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
     
     elif data == 'cifar10':

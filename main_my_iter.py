@@ -9,7 +9,7 @@ from torchvision.utils import make_grid
 import torchvision.transforms as transforms
 from tensorboardX import SummaryWriter
 
-#ReLIC
+#PRISM
 #[TODO]
 from network.modules import ReLIC_Loss, get_resnet
 from network.modules.transformations import TransformsRelic
@@ -22,7 +22,7 @@ import time
 import numpy as np
 
 from con_losses import SupConLoss, ReLICLoss
-from network import mnist_net,res_net, relic_net, generator
+from network import mnist_net,res_net, generator
 import data_loader
 from main_base import evaluate
 
@@ -115,9 +115,11 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
         elif backbone in ['resnet18','resnet50']:
-            encoder = get_resnet(backbone, pretrained= True) # Pretrained Backbone default as True
+            encoder = get_resnet(backbone, pretrained= False) # Pretrained Backbone default as True - [TODO]- wait, if we train base, False would be right
             n_features = encoder.fc.in_features
             src_net= res_net.ConvNet(encoder, 128, n_features).cuda() #projection_dim/ n_features
+            saved_weight = torch.load(ckpt)
+            src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
     elif data == 'mnistvis':
         src_net = mnist_net.ConvNetVis().cuda()
