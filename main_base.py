@@ -43,9 +43,10 @@ HOME = os.environ['HOME']
 @click.option('--lr', type=float, default=1e-3)
 @click.option('--lr_scheduler', type=str, default='none', help='Learning Weight Decay')
 @click.option('--svroot', type=str, default='./saved', help='Project file save path')
-@click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50')
+@click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50)')
+@click.option('--pretrained', type=str, default= 'True', help= 'Pretrained Backbone - ResNet18/50, Custom MNISTnet does not matter')
 
-def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr, lr_scheduler, svroot, backbone):
+def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr, lr_scheduler, svroot, backbone, pretrained):
     settings = locals().copy()
     print(settings)
 
@@ -71,7 +72,7 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
             cls_net = mnist_net.ConvNet().cuda()
             cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
         elif backbone in ['resnet18','resnet50']:
-            encoder = get_resnet(backbone, pretrained= True) # Pretrained Backbone default as True
+            encoder = get_resnet(backbone, pretrained= pretrained) # Pretrained Backbone default as True
             n_features = encoder.fc.in_features
             output_dim= 10
             cls_net= res_net.ConvNet(encoder, 128, n_features, output_dim).cuda() #projection_dim/ n_features

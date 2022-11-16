@@ -226,8 +226,11 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 #tgt_cls_loss = cls_criterion(p_tgt, y) #[TODO] GCD
                 tgt_cls_loss = cls_criterion(p_tgt.clone().detach(), y) #[TODO] GCD
                 
+                ##[Scenario 1]
                 ######TODO[Change ORDER G & F]
-                ##'''
+                #Scenario 1 Starts Here
+                #''' #Push to Close
+                
                 ##[TODO]- G(G1/2_opt): CHANGE ORDER WITH F###
                 # update g1_net
                 if flag_fixG:
@@ -252,7 +255,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     if gen in ['cnn', 'hr']:
                         div_loss = (x_tgt-x2_tgt).abs().mean([1,2,3]).clamp(max=div_thresh).mean() # Constraint Generator Divergence
                         x_tgt_rec = g2_net(x_tgt)
-                        cyc_loss = F.mse_loss(x_tgt_rec, x)
+                        cyc_loss = F.mse_loss(x_tgt_rec, x) 
                     elif gen == 'stn':
                         div_loss = (H_tgt-H2_tgt).abs().mean([1,2]).clamp(max=div_thresh).mean()
                         cyc_loss = torch.tensor(0).cuda()
@@ -271,9 +274,9 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 
                 #con_loss = con_criterion(zall, adv=False) #[TODO] GCD
                 '''
-                The original version caused error:
-                https://discuss.pytorch.org/t/83241
-                Fixed by clone&detaching tensors
+                #The original version caused error:
+                #https://discuss.pytorch.org/t/83241
+                #Fixed by clone&detaching tensors
                 '''
                 ##########################################
                 #[TODO]- Add ReLIC LOSS for Task Model(src_net) (221112)
@@ -293,12 +296,31 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 src_opt.step()     
 
                 #Ends- Change Order (G/F)
-                ##'''       
-                '''
+            
+                #Scenario 1 Ends Here
+                #''' #Uncomment to Close
+                ##############################################################################
+                
+                ##[Scenario 2]
+                #Scenario 2 Starts Here
+                ''' #Uncomment to Close
+                
                 ###[TODO]- F(src_net): CHANGE ORDER WITH G###
+                
                 # update src_net
                 zall = torch.cat([z_tgt.unsqueeze(1), zsrc], dim=1)
-                con_loss = con_criterion(zall, adv=False)
+                
+                #con_loss = con_criterion(zall, adv=False) #{TODO} .clone().detach()
+                ##########################################
+                #[TODO]- Add ReLIC LOSS for Task Model(src_net) (221112)
+                # Takes zall = torch.cat([z_tgt.unsqueeze(1), zsrc], dim=1) as input.
+                if relic==False:
+                    con_loss = con_criterion(zall.clone().detach(), adv=False) #[TODO] GCD
+                elif relic== True:
+                    con_loss = con_criterion(zall.clone().detach(), adv=False) #[TODO] GCD
+                ##########################################
+
+
                 loss = src_cls_loss + w_tgt*con_loss + w_tgt*tgt_cls_loss # w_tgt default 1.0
                 src_opt.zero_grad()
                 if flag_fixG:
@@ -317,7 +339,15 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 else:
                     idx = np.random.randint(0, zsrc.size(1))
                     zall = torch.cat([z_tgt.unsqueeze(1), zsrc[:,idx:idx+1].detach()], dim=1)
-                    con_loss_adv = con_criterion(zall, adv=True)
+                    
+                    #con_loss_adv = con_criterion(zall.clone().detach(), adv=True) #{TODO} .clone().detach()
+                    #[TODO]- Add ReLIC LOSS for Generator(G1) (221112)
+                    # Takes {zall = torch.cat([z_tgt.unsqueeze(1), zsrc[:,idx:idx+1].detach()], dim=1)} as input.
+                    if relic ==False:
+                        con_loss_adv = con_criterion(zall.clone().detach(), adv=True) #[TODO ]GCD
+                    elif relic == True:
+                        con_loss_adv = con_criterion(zall.clone().detach(), adv=True) #[TODO ]GCD
+
                     if gen in ['cnn', 'hr']:
                         div_loss = (x_tgt-x2_tgt).abs().mean([1,2,3]).clamp(max=div_thresh).mean() # Constraint Generator Divergence
                         x_tgt_rec = g2_net(x_tgt)
@@ -333,7 +363,10 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     g1_opt.step()
                     if g2_opt is not None:
                         g2_opt.step()
-            '''
+                
+                ''' #Uncomment to Close
+                ##Scenario 2 Ends Here
+                
                 # update learning rate
                 if lr_scheduler in ['cosine']:
                     scheduler.step()
