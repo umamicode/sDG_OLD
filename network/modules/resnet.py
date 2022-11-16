@@ -8,16 +8,20 @@ def get_resnet(name, pretrained=False):
         "resnet50": torchvision.models.resnet50(weights=pretrained),
     }
     '''
-    if pretrained == True:
+    
+    if pretrained == 'True':
+        #print("pretrained yes")
         resnets = {
-        "resnet18": torchvision.models.resnet18(weights=ResNet18_Weights.DEFAULT),
-        "resnet50": torchvision.models.resnet50(weights=ResNet50_Weights.DEFAULT),
+        "resnet18": torchvision.models.resnet18(weights='ResNet18_Weights.DEFAULT'), # or weights= 'DEFAULT'
+        "resnet50": torchvision.models.resnet50(weights='ResNet50_Weights.DEFAULT'), # or weights= 'DEFAULT'
         }
-    elif pretrained == False:
+    elif pretrained == 'False':
+        #print("pretrained no")
         resnets = {
-        "resnet18": torchvision.models.resnet18(weights=None),
-        "resnet50": torchvision.models.resnet50(weights=None),
+        "resnet18": torchvision.models.resnet18(weights= None),
+        "resnet50": torchvision.models.resnet50(weights= None),
         }
+    
     #[TODO] Solve this - UserWarning: The parameter 'pretrained' is deprecated since 0.13 and will be removed in 0.15, please use 'weights' instead
     if name not in resnets.keys():
         raise KeyError(f"{name} is not a valid ResNet version")

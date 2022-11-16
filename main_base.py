@@ -72,7 +72,7 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
             cls_net = mnist_net.ConvNet().cuda()
             cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
         elif backbone in ['resnet18','resnet50']:
-            encoder = get_resnet(backbone, pretrained= pretrained) # Pretrained Backbone default as True
+            encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
             n_features = encoder.fc.in_features
             output_dim= 10
             cls_net= res_net.ConvNet(encoder, 128, n_features, output_dim).cuda() #projection_dim/ n_features

@@ -76,6 +76,8 @@ def load_mnist(split='train', translate=None, twox=False, ntr=None, autoaug=None
         dataset = MNIST(f'{HOME}/.pytorch/MNIST', train=(split=='train'), download=True)
         x, y = dataset.data, dataset.targets
         if split=='train':
+            #[TODO]- Why should we only use 10k images?
+            #x, y = x, y
             x, y = x[0:10000], y[0:10000]
         x = torch.tensor(resize_imgs(x.numpy(), 32))
         x = (x.float()/255.).unsqueeze(1).repeat(1,3,1,1)
