@@ -8,7 +8,7 @@ def get_resnet(name, pretrained=False):
         "resnet50": torchvision.models.resnet50(weights=pretrained),
     }
     '''
-    
+    #Here, pretrained parameter is sent as str. Click Sucks
     if pretrained == 'True':
         #print("pretrained yes")
         resnets = {

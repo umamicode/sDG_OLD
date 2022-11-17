@@ -25,8 +25,8 @@ w_tgt=1.0
 
 gen=cnn
 interpolation=img
-backbone=custom
-pretrained=False
+backbone=resnet18
+pretrained=False #Only to load right base model, my_iter process is set as pretrained=False.
 n_tgt=20
 max_tgt=19
 
@@ -45,7 +45,7 @@ baseroot=saved-digit/base_${backbone}_${pretrained}_run0/best.pkl
 
 # step1
 python3 main_my_iter.py --gpu $1 --data mnist --gen $gen --relic --backbone ${backbone} --interpolation $interpolation --n_tgt ${n_tgt} --tgt_epochs 30 --tgt_epochs_fixg 15 --nbatch 100 --batchsize 128 --lr 1e-4 --w_cls $w_cls --w_cyc $w_cyc --w_info $w_info --w_div $w_div --div_thresh ${div_thresh} --w_tgt $w_tgt --ckpt ${baseroot} --svroot ${svroot} 
-python3 main_test_digit.py --gpu $1 --modelpath ${svroot}/${max_tgt}-best.pkl --svpath ${svroot}/test.log --backbone ${backbone} 
+python3 main_test_digit.py --gpu $1 --modelpath ${svroot}/${max_tgt}-best.pkl --svpath ${svroot}/test.log --backbone ${backbone}  
 
 #done
 

@@ -55,14 +55,17 @@ HOME = os.environ['HOME']
 @click.option('--interpolation', type=str, default='pixel', help='Interpolate between the source domain and the generated domain to get a new domain, two ways：img/pixel')
 @click.option('--relic/--no-relic', default=False)
 @click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50')
+@click.option('--pretrained', type=str, default= 'False', help= 'Pretrained Backbone - ResNet18/50, Custom MNISTnet does not matter')
 
 
 def experiment(gpu, data, ntr, gen, gen_mode, \
         n_tgt, tgt_epochs, tgt_epochs_fixg, nbatch, batchsize, lr, lr_scheduler, svroot, ckpt, \
-        w_cls, w_info, w_cyc, w_div, div_thresh, w_tgt, interpolation, relic, backbone):
+        w_cls, w_info, w_cyc, w_div, div_thresh, w_tgt, interpolation, relic, backbone, pretrained):
     settings = locals().copy()
     print(settings)
-    print("--Relic: {relic}\n".format(relic= relic))
+    print("--Relic: {relic}".format(relic= relic))
+    print("--Using Base Model from: {ckpt}".format(ckpt=ckpt))
+    print("--Trained Model savepath: {svroot}".format(svroot=svroot))
     
     # Global Settings
     zdim = 10
@@ -115,7 +118,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
         elif backbone in ['resnet18','resnet50']:
-            encoder = get_resnet(backbone, pretrained= False) # Pretrained Backbone default as True - [TODO]- wait, if we train base, False would be right
+            encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as False - We will load our model anyway
             n_features = encoder.fc.in_features
             output_dim = 10 #{TODO}- output
             src_net= res_net.ConvNet(encoder, 128, n_features,output_dim).cuda() #projection_dim/ n_features
@@ -127,15 +130,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         saved_weight = torch.load(ckpt)
         src_net.load_state_dict(saved_weight['cls_net'])
         src_opt = optim.Adam(src_net.parameters(), lr=lr)
-    ################
-    #[TODO] -ResNet
-        '''
-        encoder = get_resnet(backbone, pretrained= True) # Pretrained Backbone default as True
-        n_features = encoder.fc.in_features
-        src_net= res_net.ConvNet(encoder, 128, n_features) #projection_dim/ n_features
-        src_opt = optim.Adam(src_net.parameters(), lr=lr)
-        '''
-    ################
+    
         
 
     cls_criterion = nn.CrossEntropyLoss()
@@ -434,7 +429,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         if data == 'mnist':
             pklpath = f'{svroot}/{i_tgt}-best.pkl'
             #{TODO}- added backbone param
-            evaluate_digit(gpu, pklpath, pklpath+'.test', backbone= backbone)
+            evaluate_digit(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained) #Pretrained set as False, it will load our model instead.
 
     writer.close()
 

@@ -5,7 +5,7 @@
 # base method
 data=mnist
 backbone=resnet18
-pretrained=False
+pretrained=True
 svroot=saved-digit/base_${backbone}_${pretrained}_run${2}
 #example svroot= saved-digit/base_run0_${backbone}/best.pkl
 

@@ -23,11 +23,14 @@ from utils import log
 @click.option('--svpath', type=str, default=None, help='Path to SaveLogs')
 @click.option('--channels', type=int, default=3)
 @click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50')
+@click.option('--pretrained', type=str, default= 'False', help= 'Pretrained Backbone - ResNet18/50, Custom MNISTnet does not matter')
 
-def main(gpu, modelpath, svpath, backbone, channels):
-    evaluate_digit(gpu, modelpath, svpath, backbone, channels)
+
+def main(gpu, modelpath, svpath, backbone, channels, pretrained):
+    print("--Testing Model from: {svroot}".format(svroot= modelpath))
+    evaluate_digit(gpu, modelpath, svpath, backbone, pretrained, channels)
     
-def evaluate_digit(gpu, modelpath, svpath, backbone, channels=3):
+def evaluate_digit(gpu, modelpath, svpath, backbone, pretrained, channels=3):
     os.environ['CUDA_VISIBLE_DEVICES'] = gpu
 
     # Load Model
@@ -38,12 +41,12 @@ def evaluate_digit(gpu, modelpath, svpath, backbone, channels=3):
             cls_net = mnist_net.ConvNet(imdim=channels).cuda()
     elif backbone in ['resnet18','resnet50']:
         if channels == 3:
-            encoder = get_resnet(backbone, pretrained= False)
+            encoder = get_resnet(backbone, pretrained= pretrained)
             n_features = encoder.fc.in_features
             output_dim = 10 #{TODO}- output
             cls_net = res_net.ConvNet(encoder, 128, n_features, output_dim).cuda()
         elif channels == 1:
-            encoder = get_resnet(backbone, pretrained= False)
+            encoder = get_resnet(backbone, pretrained= pretrained)
             n_features = encoder.fc.in_features
             output_dim = 10
             cls_net = res_net.ConvNet(encoder, 128, n_features, output_dim, imdim=channels).cuda()

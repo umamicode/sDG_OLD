@@ -44,7 +44,7 @@ HOME = os.environ['HOME']
 @click.option('--lr_scheduler', type=str, default='none', help='Learning Weight Decay')
 @click.option('--svroot', type=str, default='./saved', help='Project file save path')
 @click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50)')
-@click.option('--pretrained', type=str, default= 'True', help= 'Pretrained Backbone - ResNet18/50, Custom MNISTnet does not matter')
+@click.option('--pretrained', type=str, default= 'False', help= 'Pretrained Backbone - ResNet18/50, Custom MNISTnet does not matter')
 
 def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr, lr_scheduler, svroot, backbone, pretrained):
     settings = locals().copy()
