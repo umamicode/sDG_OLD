@@ -85,6 +85,12 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             trset = data_loader.load_mnist_t('train', ntr=ntr)
             teset = data_loader.load_mnist('test')
         imsize = [32, 32]
+    elif data in ['cifar10']:
+        trset = data_loader.load_cifar10(split='train', autoaug=None) #Autoaug set as None
+        teset = data_loader.load_cifar10(split='test')
+        imsize = [32, 32]
+
+    print("Training With {data} data".format(data=data))
     trloader = DataLoader(trset, batch_size=batchsize, num_workers=8, \
                 sampler=RandomSampler(trset, True, nbatch*batchsize))
     teloader = DataLoader(teset, batch_size=batchsize, num_workers=8, shuffle=False)
@@ -130,7 +136,21 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         saved_weight = torch.load(ckpt)
         src_net.load_state_dict(saved_weight['cls_net'])
         src_opt = optim.Adam(src_net.parameters(), lr=lr)
-    
+    #[TODO]- Add Cifar10 Data Loader
+    elif data == 'cifar10':
+        if backbone == 'custom':
+            src_net = mnist_net.ConvNet().cuda()
+            saved_weight = torch.load(ckpt)
+            src_net.load_state_dict(saved_weight['cls_net'])
+            src_opt = optim.Adam(src_net.parameters(), lr=lr)
+        elif backbone in ['resnet18','resnet50']:
+            encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as False - We will load our model anyway
+            n_features = encoder.fc.in_features
+            output_dim = 10 #{TODO}- output
+            src_net= res_net.ConvNet(encoder, 128, n_features, output_dim).cuda() #projection_dim/ n_features
+            saved_weight = torch.load(ckpt)
+            src_net.load_state_dict(saved_weight['cls_net'])
+            src_opt = optim.Adam(src_net.parameters(), lr=lr)
         
 
     cls_criterion = nn.CrossEntropyLoss()
@@ -373,7 +393,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             src_net.eval()
             # mnist、cifar test process synthia is different
             if data in ['mnist', 'mnist_t', 'mnistvis']:
-                teacc = evaluate(src_net, teloader)
+                teacc = evaluate(src_net, teloader) #{TODO} -Add evaluate_cifar10
             if best_acc < teacc:
                 best_acc = teacc
                 torch.save({'cls_net':src_net.state_dict()}, os.path.join(svroot, f'{i_tgt}-best.pkl'))

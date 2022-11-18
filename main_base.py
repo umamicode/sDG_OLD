@@ -89,17 +89,31 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
         cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
     
     elif data == 'cifar10':
-        print("TODO- ResNet Not Implemented atm.")
+        
         # Load Dataset
-        trset = data_loader.load_cifar10(split='train', autoaug=autoaug)
+        trset = data_loader.load_cifar10(split='train')
         teset = data_loader.load_cifar10(split='test')
         trloader = DataLoader(trset, batch_size=batchsize, num_workers=8, shuffle=True, drop_last=True)
         teloader = DataLoader(teset, batch_size=batchsize, num_workers=8, shuffle=False)
+        
+        ######
+        
+        if backbone == 'custom':
+            cls_net = mnist_net.ConvNet().cuda()
+            cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
+        elif backbone in ['resnet18','resnet50']:
+            encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
+            n_features = encoder.fc.in_features
+            output_dim= 10
+            cls_net= res_net.ConvNet(encoder, 128, n_features, output_dim).cuda() #projection_dim/ n_features
+            cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
+            #cls_opt = optim.SGD(cls_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)
+        ###### Old Code
         #[TODO- WideResNet?- MNIST_NET is too shallow]
         #cls_net = wideresnet.WideResNet(16, 10, 4).cuda()
-        cls_net= mnist_net.ConvNet().cuda()
-
-        cls_opt = optim.SGD(cls_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)
+        #cls_net= mnist_net.ConvNet().cuda()
+        #cls_opt = optim.SGD(cls_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)
+        
         if lr_scheduler == 'cosine':
             scheduler = optim.lr_scheduler.CosineAnnealingLR(cls_opt, epochs)
     elif 'synthia' in data:

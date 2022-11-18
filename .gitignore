@@ -2,5 +2,6 @@ data/
 __pycache__/
 saved-digit/
 saved-digit-ko/
+saved-model/
 *.pkl
 *.pyc

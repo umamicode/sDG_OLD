@@ -10,13 +10,11 @@ def get_resnet(name, pretrained=False):
     '''
     #Here, pretrained parameter is sent as str. Click Sucks
     if pretrained == 'True':
-        #print("pretrained yes")
         resnets = {
         "resnet18": torchvision.models.resnet18(weights='ResNet18_Weights.DEFAULT'), # or weights= 'DEFAULT'
         "resnet50": torchvision.models.resnet50(weights='ResNet50_Weights.DEFAULT'), # or weights= 'DEFAULT'
         }
     elif pretrained == 'False':
-        #print("pretrained no")
         resnets = {
         "resnet18": torchvision.models.resnet18(weights= None),
         "resnet50": torchvision.models.resnet50(weights= None),
