@@ -9,7 +9,7 @@ class ConvNet(nn.Module):
     ''' The network structure is consistent with the M-ADA method of cvpr2020
         https://github.com/joffery/M-ADA
      '''
-    def __init__(self, imdim=3):
+    def __init__(self, projection_dim, imdim=3):
         super(ConvNet, self).__init__()
 
         self.conv1 = nn.Conv2d(imdim, 64, kernel_size=5, stride=1, padding=0)
@@ -24,7 +24,7 @@ class ConvNet(nn.Module):
         
         self.cls_head_src = nn.Linear(1024, 10)
         self.cls_head_tgt = nn.Linear(1024, 10)
-        self.pro_head = nn.Linear(1024, 128)
+        self.pro_head = nn.Linear(1024, projection_dim)
 
     def forward(self, x, mode='test'):
         in_size = x.size(0)

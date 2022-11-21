@@ -11,7 +11,7 @@ from tensorboardX import SummaryWriter
 
 #PRISM
 #[TODO]
-from network.modules import ReLIC_Loss, get_resnet
+from network.modules import get_resnet
 from network.modules.transformations import TransformsRelic
 from network.modules.sync_batchnorm import convert_model
 
@@ -21,7 +21,7 @@ import click
 import time
 import numpy as np
 
-from con_losses import SupConLoss, ReLICLoss
+from con_losses import SupConLoss, ReLICLoss, BarlowTwinsLoss
 from network import mnist_net,res_net, generator
 import data_loader
 from main_base import evaluate
@@ -53,17 +53,18 @@ HOME = os.environ['HOME']
 @click.option('--div_thresh', type=float, default=0.1, help='div_loss threshold')
 @click.option('--w_tgt', type=float, default=1.0, help='target domain sample update tasknet intensity control')
 @click.option('--interpolation', type=str, default='pixel', help='Interpolate between the source domain and the generated domain to get a new domain, two ways：img/pixel')
-@click.option('--relic/--no-relic', default=False)
+@click.option('--loss_fn', type=str, default='supcon', help= 'Loss Functions (supcon/relic/barlowtwins')
 @click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50')
 @click.option('--pretrained', type=str, default= 'False', help= 'Pretrained Backbone - ResNet18/50, Custom MNISTnet does not matter')
+@click.option('--projection_dim', type=int, default=128, help= "Projection Dimension of the representation vector for Resnet; Default: 128")
 
 
 def experiment(gpu, data, ntr, gen, gen_mode, \
         n_tgt, tgt_epochs, tgt_epochs_fixg, nbatch, batchsize, lr, lr_scheduler, svroot, ckpt, \
-        w_cls, w_info, w_cyc, w_div, div_thresh, w_tgt, interpolation, relic, backbone, pretrained):
+        w_cls, w_info, w_cyc, w_div, div_thresh, w_tgt, interpolation, loss_fn, backbone, pretrained, projection_dim):
     settings = locals().copy()
     print(settings)
-    print("--Relic: {relic}".format(relic= relic))
+    print("--Loss Function: {loss_fn}".format(loss_fn= loss_fn))
     print("--Using Base Model from: {ckpt}".format(ckpt=ckpt))
     print("--Trained Model savepath: {svroot}".format(svroot=svroot))
     
@@ -119,7 +120,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     ### Load Model ([TODO]- Add Mutual Information Regularization Method for Pretrained Models)
     if data in ['mnist', 'mnist_t']:
         if backbone == 'custom':
-            src_net = mnist_net.ConvNet().cuda()
+            src_net = mnist_net.ConvNet(projection_dim).cuda()
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
@@ -127,7 +128,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as False - We will load our model anyway
             n_features = encoder.fc.in_features
             output_dim = 10 #{TODO}- output
-            src_net= res_net.ConvNet(encoder, 128, n_features,output_dim).cuda() #projection_dim/ n_features
+            src_net= res_net.ConvNet(encoder, projection_dim, n_features,output_dim).cuda() #projection_dim/ n_features/output_dim=10
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
@@ -139,7 +140,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     #[TODO]- Add Cifar10 Data Loader
     elif data == 'cifar10':
         if backbone == 'custom':
-            src_net = mnist_net.ConvNet().cuda()
+            src_net = mnist_net.ConvNet(projection_dim).cuda()
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
@@ -147,7 +148,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as False - We will load our model anyway
             n_features = encoder.fc.in_features
             output_dim = 10 #{TODO}- output
-            src_net= res_net.ConvNet(encoder, 128, n_features, output_dim).cuda() #projection_dim/ n_features
+            src_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features/output_dim=10
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
@@ -156,10 +157,12 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     cls_criterion = nn.CrossEntropyLoss()
     ##########################################
     #[TODO]- Add ReLIC LOSS (221112)
-    if relic==False:
+    if loss_fn=='supcon':
         con_criterion = SupConLoss()
-    elif relic==True:
+    elif loss_fn=='relic':
         con_criterion = ReLICLoss()
+    elif loss_fn=='barlowtwins':
+        con_criterion = BarlowTwinsLoss()
     ##########################################    
     
     # Train
@@ -257,14 +260,16 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     idx = np.random.randint(0, zsrc.size(1))
                     zall = torch.cat([z_tgt.unsqueeze(1), zsrc[:,idx:idx+1].detach()], dim=1)
                     #con_loss_adv = con_criterion(zall, adv=True) #[TODO ]GCD
-                    
+                    con_loss_adv = con_criterion(zall.clone().detach(), adv=True) #Modified 11/21/2022 - All Loss uses this code
                     ##########################################
-                    #[TODO]- Add ReLIC LOSS for Generator(G1) (221112)
+                    #[TODO]- Add ReLIC LOSS for Generator(G1) (221112) - Depreciated since 11/21/2022
                     # Takes {zall = torch.cat([z_tgt.unsqueeze(1), zsrc[:,idx:idx+1].detach()], dim=1)} as input.
+                    '''
                     if relic ==False:
                         con_loss_adv = con_criterion(zall.clone().detach(), adv=True) #[TODO ]GCD
                     elif relic == True:
                         con_loss_adv = con_criterion(zall.clone().detach(), adv=True) #[TODO ]GCD
+                    '''
                     ##########################################
                     
                     if gen in ['cnn', 'hr']:
@@ -293,13 +298,17 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 #https://discuss.pytorch.org/t/83241
                 #Fixed by clone&detaching tensors
                 '''
+                #Modified 11/21/2022 - All loss uses this code
+                con_loss = con_criterion(zall.clone().detach(), adv=False)
                 ##########################################
-                #[TODO]- Add ReLIC LOSS for Task Model(src_net) (221112)
+                #[TODO]- Add ReLIC LOSS for Task Model(src_net) (221112) - depreciated since 11/21
                 # Takes zall = torch.cat([z_tgt.unsqueeze(1), zsrc], dim=1) as input.
+                '''
                 if relic==False:
                     con_loss = con_criterion(zall.clone().detach(), adv=False) #[TODO] GCD
                 elif relic== True:
                     con_loss = con_criterion(zall.clone().detach(), adv=False) #[TODO] GCD
+                '''
                 ##########################################
 
                 loss = src_cls_loss + w_tgt*con_loss + w_tgt*tgt_cls_loss # w_tgt default 1.0
@@ -415,7 +424,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
 
             g1_all = g1_list + [g1_net]
             x = x[0:10]
-            l1 = make_grid(x, 1, 2, pad_value=128)
+            l1 = make_grid(x, 1, 2, pad_value=128) #[TODO]- check proj_dim
             l_list = [l1]
             with torch.no_grad():
                 for i in range(len(g1_all)):
@@ -449,7 +458,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         if data == 'mnist':
             pklpath = f'{svroot}/{i_tgt}-best.pkl'
             #{TODO}- added backbone param
-            evaluate_digit(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained) #Pretrained set as False, it will load our model instead.
+            evaluate_digit(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained, projection_dim= projection_dim) #Pretrained set as False, it will load our model instead.
 
     writer.close()
 

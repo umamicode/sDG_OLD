@@ -24,24 +24,26 @@ div_thresh=0.5
 w_tgt=1.0
 n_tgt=20
 max_tgt=19
-tgt_epochs=50
+tgt_epochs=30
 
 gen=cnn
 interpolation=img
 
 
 data=mnist #mnist/cifar10(not ready)
-backbone=resnet50 #custom/resnet18/resnet50
+backbone=custom #custom/resnet18/resnet50
 pretrained=False #Only to load right base model. my_iter process is set as pretrained=False.
-#For ReliC: Either (--relic / --no-relic)
+projection_dim=512
+loss_fn=supcon #supcon/relic/barlowtwins
+
 
 # Model Load/Save Path
-svroot=saved-model/${data}/${gen}_${interpolation}_${backbone}_${pretrained}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_run${2}
-baseroot=saved-model/${data}/base_${backbone}_${pretrained}_run0/best.pkl
+svroot=saved-model/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_run${2}
+baseroot=saved-model/${data}/base_${backbone}_${pretrained}_${projection_dim}_run0/best.pkl
 
 # step1
-python3 main_my_iter.py --gpu $1 --data ${data} --gen $gen --relic --backbone ${backbone} --interpolation $interpolation --n_tgt ${n_tgt} --tgt_epochs ${tgt_epochs} --tgt_epochs_fixg 15 --nbatch 100 --batchsize 128 --lr 1e-4 --w_cls $w_cls --w_cyc $w_cyc --w_info $w_info --w_div $w_div --div_thresh ${div_thresh} --w_tgt $w_tgt --ckpt ${baseroot} --svroot ${svroot} 
-python3 main_test_digit.py --gpu $1 --modelpath ${svroot}/${max_tgt}-best.pkl --svpath ${svroot}/test.log --backbone ${backbone}  
+python3 main_my_iter.py --gpu $1 --data ${data} --gen $gen --backbone ${backbone} --loss_fn ${loss_fn} --projection_dim ${projection_dim} --interpolation $interpolation --n_tgt ${n_tgt} --tgt_epochs ${tgt_epochs} --tgt_epochs_fixg 15 --nbatch 100 --batchsize 128 --lr 1e-4 --w_cls $w_cls --w_cyc $w_cyc --w_info $w_info --w_div $w_div --div_thresh ${div_thresh} --w_tgt $w_tgt --ckpt ${baseroot} --svroot ${svroot} 
+python3 main_test_digit.py --gpu $1 --modelpath ${svroot}/${max_tgt}-best.pkl --svpath ${svroot}/test.log --backbone ${backbone} --projection_dim ${projection_dim}
 
 #done
 

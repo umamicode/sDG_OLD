@@ -16,7 +16,7 @@ from tensorboardX import SummaryWriter
 
 #PRISM
 #[TODO]
-from network.modules import ReLIC_Loss, get_resnet
+from network.modules import get_resnet
 from network.modules.transformations import TransformsRelic
 from network.modules.sync_batchnorm import convert_model
 
@@ -45,8 +45,9 @@ HOME = os.environ['HOME']
 @click.option('--svroot', type=str, default='./saved', help='Project file save path')
 @click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50)')
 @click.option('--pretrained', type=str, default= 'False', help= 'Pretrained Backbone - ResNet18/50, Custom MNISTnet does not matter')
+@click.option('--projection_dim', type=int, default=128, help= "Projection Dimension of the representation vector for Resnet; Default: 128")
 
-def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr, lr_scheduler, svroot, backbone, pretrained):
+def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr, lr_scheduler, svroot, backbone, pretrained, projection_dim):
     settings = locals().copy()
     print(settings)
 
@@ -69,13 +70,13 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
         teloader = DataLoader(teset, batch_size=batchsize, num_workers=8, shuffle=False)
         
         if backbone == 'custom':
-            cls_net = mnist_net.ConvNet().cuda()
+            cls_net = mnist_net.ConvNet(projection_dim=projection_dim).cuda()
             cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
         elif backbone in ['resnet18','resnet50']:
             encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
             n_features = encoder.fc.in_features
             output_dim= 10
-            cls_net= res_net.ConvNet(encoder, 128, n_features, output_dim).cuda() #projection_dim/ n_features
+            cls_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
             cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
 
     elif data == 'mnistvis':
@@ -99,13 +100,13 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
         ######
         
         if backbone == 'custom':
-            cls_net = mnist_net.ConvNet().cuda()
+            cls_net = mnist_net.ConvNet(projection_dim=projection_dim).cuda()
             cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
         elif backbone in ['resnet18','resnet50']:
             encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
             n_features = encoder.fc.in_features
             output_dim= 10
-            cls_net= res_net.ConvNet(encoder, 128, n_features, output_dim).cuda() #projection_dim/ n_features
+            cls_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
             cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
             #cls_opt = optim.SGD(cls_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)
         ###### Old Code

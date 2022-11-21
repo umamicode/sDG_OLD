@@ -24,32 +24,33 @@ from utils import log
 @click.option('--channels', type=int, default=3)
 @click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50')
 @click.option('--pretrained', type=str, default= 'False', help= 'Pretrained Backbone - ResNet18/50, Custom MNISTnet does not matter')
+@click.option('--projection_dim', type=int, default=128, help= "Projection Dimension of the representation vector for Resnet; Default: 128")
 
 
-def main(gpu, modelpath, svpath, backbone, channels, pretrained):
+def main(gpu, modelpath, svpath, backbone, channels, pretrained, projection_dim):
     print("--Testing Model from: {svroot}".format(svroot= modelpath))
-    evaluate_digit(gpu, modelpath, svpath, backbone, pretrained, channels)
+    evaluate_digit(gpu, modelpath, svpath, backbone, pretrained,projection_dim, channels)
     
-def evaluate_digit(gpu, modelpath, svpath, backbone, pretrained, channels=3):
+def evaluate_digit(gpu, modelpath, svpath, backbone, pretrained,projection_dim, channels=3):
     os.environ['CUDA_VISIBLE_DEVICES'] = gpu
 
     # Load Model
     if backbone== 'custom':
         if channels == 3:
-            cls_net = mnist_net.ConvNet().cuda()
+            cls_net = mnist_net.ConvNet(projection_dim).cuda()
         elif channels == 1:
-            cls_net = mnist_net.ConvNet(imdim=channels).cuda()
+            cls_net = mnist_net.ConvNet(projection_dim, imdim=channels).cuda()
     elif backbone in ['resnet18','resnet50']:
         if channels == 3:
             encoder = get_resnet(backbone, pretrained= pretrained)
             n_features = encoder.fc.in_features
             output_dim = 10 #{TODO}- output
-            cls_net = res_net.ConvNet(encoder, 128, n_features, output_dim).cuda()
+            cls_net = res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda()
         elif channels == 1:
             encoder = get_resnet(backbone, pretrained= pretrained)
             n_features = encoder.fc.in_features
             output_dim = 10
-            cls_net = res_net.ConvNet(encoder, 128, n_features, output_dim, imdim=channels).cuda()
+            cls_net = res_net.ConvNet(encoder, projection_dim, n_features, output_dim, imdim=channels).cuda()
 
     saved_weight = torch.load(modelpath) #dict(saved_weight) only has cls_net as key
     cls_net.load_state_dict(saved_weight['cls_net'])
