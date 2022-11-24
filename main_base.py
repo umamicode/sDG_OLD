@@ -34,7 +34,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL']= '2'
 
 @click.command()
 @click.option('--gpu', type=str, default='0', help='Choose GPU')
-@click.option('--data', type=str, default='mnist', help='Dataset name')
+@click.option('--data', type=str, default='mnist', help='Dataset name (mnist/')
 @click.option('--ntr', type=int, default=None, help='Select the first ntr samples of the training set')
 @click.option('--translate', type=float, default=None, help='Random translation data augmentation')
 @click.option('--autoaug', type=str, default=None, help='AA FastAA RA')
@@ -118,6 +118,30 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
         
         if lr_scheduler == 'cosine':
             scheduler = optim.lr_scheduler.CosineAnnealingLR(cls_opt, epochs)
+
+    elif data in ['pacs']:
+        # Load Dataset
+        trset = data_loader.load_pacs(split='train')
+        teset = data_loader.load_pacs(split='test')
+        trloader = DataLoader(trset, batch_size=batchsize, num_workers=8, shuffle=True, drop_last=True)
+        teloader = DataLoader(teset, batch_size=batchsize, num_workers=8, shuffle=False)
+
+        if backbone == 'custom':
+            raise ValueError('WORK IN PROGRESS: PLEASE USE Resnet-18/50 For PACS')
+            #cls_net = mnist_net.ConvNet(projection_dim=projection_dim).cuda()
+            #cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
+        elif backbone in ['resnet18','resnet50']:
+            encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
+            n_features = encoder.fc.in_features
+            output_dim= 7
+            cls_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
+            cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
+            #cls_opt = optim.SGD(cls_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)
+        
+        if lr_scheduler == 'cosine':
+            scheduler = optim.lr_scheduler.CosineAnnealingLR(cls_opt, epochs)
+
+
     elif 'synthia' in data:
         # Load Dataset
         branch = data.split('_')[1]
@@ -170,6 +194,8 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
             teacc = evaluate_seg(cls_net, teloader, nclass) # Counting miou
         #[TODO] add cifar10 evaluation
         elif data in ['cifar10']:
+            teacc = evaluate(cls_net, teloader)
+        elif data in ['pacs']:
             teacc = evaluate(cls_net, teloader)
             
         if best_acc < teacc:

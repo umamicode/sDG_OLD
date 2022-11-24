@@ -33,6 +33,8 @@ def main(gpu, modelpath, svpath, backbone, channels, pretrained, projection_dim,
         evaluate_digit(gpu, modelpath, svpath, backbone, pretrained,projection_dim, channels)
     elif data in ['cifar10']:
         evaluate_image(gpu, modelpath, svpath, backbone, pretrained,projection_dim, channels)
+    elif data in ['pacs']:
+        evaluate_pacs(gpu, modelpath, svpath, backbone, pretrained,projection_dim, channels)
 
 def evaluate_digit(gpu, modelpath, svpath, backbone, pretrained,projection_dim, channels=3):
     os.environ['CUDA_VISIBLE_DEVICES'] = gpu
@@ -125,6 +127,59 @@ def evaluate_image(gpu, modelpath, svpath, backbone, pretrained,projection_dim, 
     if svpath is not None:
         df.to_csv(svpath)        
 
+def evaluate_pacs(gpu, modelpath, svpath, backbone, pretrained,projection_dim, channels=3):
+    os.environ['CUDA_VISIBLE_DEVICES'] = gpu
+
+    # Load Model
+    if backbone== 'custom':
+        if channels == 3:
+            cls_net = mnist_net.ConvNet(projection_dim).cuda()
+        elif channels == 1:
+            cls_net = mnist_net.ConvNet(projection_dim, imdim=channels).cuda()
+    elif backbone in ['resnet18','resnet50']:
+        if channels == 3:
+            encoder = get_resnet(backbone, pretrained= pretrained)
+            n_features = encoder.fc.in_features
+            output_dim = 7 #pacs
+            cls_net = res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda()
+        elif channels == 1:
+            encoder = get_resnet(backbone, pretrained= pretrained)
+            n_features = encoder.fc.in_features
+            output_dim = 7 #pacs
+            cls_net = res_net.ConvNet(encoder, projection_dim, n_features, output_dim, imdim=channels).cuda()
+
+    saved_weight = torch.load(modelpath) #dict(saved_weight) only has cls_net as key
+    cls_net.load_state_dict(saved_weight['cls_net'])
+    #cls_net.eval()
+
+    # Test
+    str2fun = { 
+        'test': data_loader.load_pacs,
+        'art': data_loader.load_pacs_acs,
+        'cartoon': data_loader.load_pacs_acs,
+        'sketch': data_loader.load_pacs_acs
+        }   
+    columns = ['test','art','cartoon','sketch']
+    rst = []
+    for data in columns:
+        if data == 'test':
+            teset = str2fun[data]('test', channels=channels)
+        elif data in ['art','cartoon','sketch']:
+            teset= str2fun[data](split= data,channels=channels)
+        teloader = DataLoader(teset, batch_size=128, num_workers=8,drop_last=True) #solved error with drop_last
+        '''
+        <Solved Error>
+        ValueError: Expected more than 1 value per channel when training, got input size torch.Size([1, 512, 1, 1])
+        '''
+        teacc = evaluate(cls_net, teloader)
+        rst.append(teacc)
+        
+    
+    df = pd.DataFrame([rst], columns=columns)
+    print(df)
+    if svpath is not None:
+        df.to_csv(svpath)
+        
 
 if __name__=='__main__':
     main()

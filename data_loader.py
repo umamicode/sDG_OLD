@@ -2,9 +2,9 @@
 '''
 import torch
 import torch.nn.functional as F
-from torch.utils.data import Dataset, TensorDataset
+from torch.utils.data import Dataset, TensorDataset, random_split
 from torchvision import transforms
-from torchvision.datasets import MNIST, USPS, SVHN, CIFAR10, STL10
+from torchvision.datasets import MNIST, USPS, SVHN, CIFAR10, STL10, ImageFolder
 
 import tensorflow_datasets as tfds
 
@@ -232,8 +232,6 @@ def load_stl10(split='train', channels=3):
     dataset = TensorDataset(x, y)
     return dataset
 
-
-
 def load_cifar10c(split='train', translate=None, twox=False, ntr=None, autoaug=None, channels=3):
     path = f'data/cifar10c-{split}.pkl'
     cifar10_transforms_train= transforms.Compose([transforms.Resize((32,32))]) #224,224
@@ -268,6 +266,125 @@ def load_cifar10c(split='train', translate=None, twox=False, ntr=None, autoaug=N
     if (translate is None) and (autoaug is None):
         dataset = TensorDataset(x, y)
         return dataset
+    
+#PACS
+def load_pacs(split='train', translate=None, twox=False, ntr=None, autoaug=None, channels=3):
+    #PACS Dataset
+    NUM_CLASSES = 7      # 7 classes for each domain: 'dog', 'elephant', 'giraffe', 'guitar', 'horse', 'house', 'person'
+    DATASETS_NAMES = ['photo', 'art', 'cartoon', 'sketch']
+    CLASSES_NAMES = ['Dog', 'Elephant', 'Giraffe', 'Guitar', 'Horse', 'House', 'Person']
+    DIR_PHOTO = './data/PACS/photo'
+    DIR_ART = './data/PACS/art_painting'
+    DIR_CARTOON = './data/PACS/cartoon'
+    DIR_SKETCH = './data/PACS/sketch'
+
+    path = f'data/pacs-{split}.pkl'
+    #manually use PACS-Photo as train/test
+    trainpath= 'data/pacs-train.pkl'
+    testpath= 'data/pacs-test.pkl'
+
+    pacs_convertor= {'train':DIR_PHOTO,'test':DIR_PHOTO, 'photo':DIR_PHOTO, 'art':DIR_ART, 'cartoon':DIR_CARTOON, 'sketch':DIR_SKETCH}
+    
+    pacs_transforms_train= transforms.Compose([transforms.ToTensor(),transforms.Resize((224,224))]) #224,224
+    if not os.path.exists(path):
+        
+        dataset= ImageFolder(pacs_convertor[split], transform=pacs_transforms_train)
+        train_size = int(0.9 * len(dataset))
+        test_size = len(dataset) - train_size
+        train_set, test_set = random_split(dataset, [train_size, test_size])
+
+        #Train Set
+        train_loader = torch.utils.data.DataLoader(train_set,batch_size=train_size,drop_last=True)
+        x, y= next(iter(train_loader))
+        #x, y = dataset.image, dataset.label
+        x= torch.tensor(x)
+        #x = (x.float()/255.)#.unsqueeze(1).repeat(1,3,1,1)  #<class 'torch.Tensor'>
+        #x= x.permute(0,3,1,2) #[batchsize,w,h,channel] -> [batchsize, channel, w,h]
+        y = torch.tensor(y)
+        with open(trainpath, 'wb') as f:
+            pickle.dump([x, y], f)
+        
+        #Test Set
+        test_loader = torch.utils.data.DataLoader(test_set,batch_size=test_size,drop_last=True, shuffle=True)
+        x, y= next(iter(test_loader))
+        x= torch.tensor(x)
+        #x = (x.float()/255.)#.unsqueeze(1).repeat(1,3,1,1)  #<class 'torch.Tensor'>
+        #x= x.permute(0,3,1,2) #[batchsize,w,h,channel] -> [batchsize, channel, w,h]
+        y = torch.tensor(y)
+        with open(testpath, 'wb') as f:
+            pickle.dump([x, y], f) 
+
+    with open(path, 'rb') as f:
+        x, y = pickle.load(f)
+        if channels == 1:
+            x = x[:,0:1,:,:]
+    
+    if ntr is not None:
+        x, y = x[0:ntr], y[0:ntr]
+    
+    # Without Data Augmentation
+    if (translate is None) and (autoaug is None):
+        dataset = TensorDataset(x, y)
+        return dataset
+
+def load_pacs_acs(split='art', translate=None, twox=False, ntr=None, autoaug=None, channels=3):
+    #PACS Dataset
+    NUM_CLASSES = 7     
+    DATASETS_NAMES = ['photo', 'art', 'cartoon', 'sketch']
+    CLASSES_NAMES = ['Dog', 'Elephant', 'Giraffe', 'Guitar', 'Horse', 'House', 'Person']
+    DIR_ART = './data/PACS/art_painting'
+    DIR_CARTOON = './data/PACS/cartoon'
+    DIR_SKETCH = './data/PACS/sketch'
+
+    path = f'data/pacs-{split}.pkl'
+    '''
+    pacs_convertor= {'photo':DIR_PHOTO, 'art':DIR_ART, 'cartoon':DIR_CARTOON, 'sketch':DIR_SKETCH}
+    
+    pacs_transforms_train= transforms.Compose([transforms.ToTensor(),transforms.Resize((32,32))]) #224,224
+    
+    if not os.path.exists(path):
+        
+        dataset= ImageFolder(pacs_convertor[domain], transform=pacs_transforms_train)
+        #train_size = int(0.8 * len(dataset))
+        #test_size = len(dataset) - train_size
+        #train_set, test_set = random_split(dataset, [train_size, test_size])
+
+        #Train Set
+        train_loader = torch.utils.data.DataLoader(train_set,batch_size=train_size,drop_last=True)
+        x, y= next(iter(train_loader))
+        #x, y = dataset.image, dataset.label
+        x= torch.tensor(x)
+        #x = (x.float()/255.)#.unsqueeze(1).repeat(1,3,1,1)  #<class 'torch.Tensor'>
+        #x= x.permute(0,3,1,2) #[batchsize,w,h,channel] -> [batchsize, channel, w,h]
+        y = torch.tensor(y)
+        with open(trainpath, 'wb') as f:
+            pickle.dump([x, y], f)
+        
+        #Test Set
+        test_loader = torch.utils.data.DataLoader(test_set,batch_size=test_size,drop_last=True, shuffle=True)
+        x, y= next(iter(test_loader))
+        x= torch.tensor(x)
+        #x = (x.float()/255.)#.unsqueeze(1).repeat(1,3,1,1)  #<class 'torch.Tensor'>
+        #x= x.permute(0,3,1,2) #[batchsize,w,h,channel] -> [batchsize, channel, w,h]
+        y = torch.tensor(y)
+        with open(testpath, 'wb') as f:
+            pickle.dump([x, y], f) 
+    '''
+    with open(path, 'rb') as f:
+        x, y = pickle.load(f)
+        if channels == 1:
+            x = x[:,0:1,:,:]
+        
+    if ntr is not None:
+        x, y = x[0:ntr], y[0:ntr]
+    
+    # Without Data Augmentation
+    if (translate is None) and (autoaug is None):
+        dataset = TensorDataset(x, y)
+        return dataset
+
+
+
 if __name__=='__main__':
     dataset = load_mnist(split='train')
     print('mnist train', len(dataset))
@@ -285,3 +402,5 @@ if __name__=='__main__':
     print('stl10', len(dataset))
     dataset= load_cifar10c(split='test')
     print('cifar10-c', len(dataset))
+    dataset= load_pacs(split='test')
+    print('pacs', len(dataset))

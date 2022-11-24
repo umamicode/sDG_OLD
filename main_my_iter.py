@@ -90,11 +90,17 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         trset = data_loader.load_cifar10(split='train', autoaug=None) #Autoaug set as None
         teset = data_loader.load_cifar10(split='test')
         imsize = [32, 32]
+    elif data in ['pacs']:
+        trset = data_loader.load_pacs(split='train')
+        teset = data_loader.load_pacs(split='test')
+        imsize = [32, 32]
+        #trloader = DataLoader(trset, batch_size=batchsize, num_workers=8, shuffle=True, drop_last=True)
+        #teloader = DataLoader(teset, batch_size=batchsize, num_workers=8, shuffle=False)
 
     print("Training With {data} data".format(data=data))
     trloader = DataLoader(trset, batch_size=batchsize, num_workers=8, \
                 sampler=RandomSampler(trset, True, nbatch*batchsize))
-    teloader = DataLoader(teset, batch_size=batchsize, num_workers=8, shuffle=False)
+    teloader = DataLoader(teset, batch_size=batchsize, num_workers=8, shuffle=False, drop_last=True) #added this for pacs
     
     # load model
     def get_generator(name):  #[TODO]maybe not gen but name?
@@ -132,12 +138,13 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
+    
     elif data == 'mnistvis':
         src_net = mnist_net.ConvNetVis().cuda()
         saved_weight = torch.load(ckpt)
         src_net.load_state_dict(saved_weight['cls_net'])
         src_opt = optim.Adam(src_net.parameters(), lr=lr)
-    #[TODO]- Add Cifar10 Data Loader
+    
     elif data in ['cifar10']:
         if backbone == 'custom':
             src_net = mnist_net.ConvNet(projection_dim).cuda()
@@ -152,7 +159,19 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
-        
+    elif data in ['pacs']:
+        if backbone == 'custom':
+            raise ValueError('WORK IN PROGRESS: PLEASE USE Resnet-18/50 For PACS')
+            #cls_net = mnist_net.ConvNet(projection_dim=projection_dim).cuda()
+            #cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
+        elif backbone in ['resnet18','resnet50']:
+            encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
+            n_features = encoder.fc.in_features
+            output_dim= 7
+            src_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features/output_dim=10
+            saved_weight = torch.load(ckpt)
+            src_net.load_state_dict(saved_weight['cls_net'])
+            src_opt = optim.Adam(src_net.parameters(), lr=lr)
 
     cls_criterion = nn.CrossEntropyLoss()
     ##########################################
@@ -405,7 +424,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 teacc = evaluate(src_net, teloader) #{TODO} -Add evaluate_cifar10
             elif data in ['cifar10']:
                 teacc = evaluate(src_net, teloader)
-            
+            elif data in ['pacs']:
+                teacc = evaluate(src_net, teloader)
             #Save Best Model
             if best_acc < teacc:
                 best_acc = teacc
@@ -458,7 +478,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         g1_list.append(g1_net)
 
         # Test the generalization effect of the i_tgt model
-        from main_test_digit import evaluate_digit, evaluate_image
+        from main_test_digit import evaluate_digit, evaluate_image, evaluate_pacs
         if data == 'mnist':
             pklpath = f'{svroot}/{i_tgt}-best.pkl'
             #{TODO}- added backbone param
@@ -466,6 +486,9 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         elif data == 'cifar10':
             pklpath = f'{svroot}/{i_tgt}-best.pkl'
             evaluate_image(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained, projection_dim= projection_dim)
+        elif data == 'pacs':
+            pklpath = f'{svroot}/{i_tgt}-best.pkl'
+            evaluate_pacs(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained, projection_dim= projection_dim)
     writer.close()
 
 if __name__=='__main__':

@@ -3,11 +3,11 @@
 # $2 runid
 
 # base method
-data=cifar10 #(mnist/cifar10)
+data=pacs #(mnist/cifar10/pacs)
 backbone=resnet18 #(custom/resnet18/resnet50)
-pretrained=False
+pretrained=True
 projection_dim=128 #Higher Dim. for BarlowTwins (custom default:128/ resnet default: 128)
-epochs=50 #default:50
+epochs=100 #default:50
 
 # Base Model Path
 svroot=saved-model/${data}/base_${backbone}_${pretrained}_${projection_dim}_run${2} 
