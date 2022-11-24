@@ -138,7 +138,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         src_net.load_state_dict(saved_weight['cls_net'])
         src_opt = optim.Adam(src_net.parameters(), lr=lr)
     #[TODO]- Add Cifar10 Data Loader
-    elif data == 'cifar10':
+    elif data in ['cifar10']:
         if backbone == 'custom':
             src_net = mnist_net.ConvNet(projection_dim).cuda()
             saved_weight = torch.load(ckpt)
@@ -147,7 +147,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         elif backbone in ['resnet18','resnet50']:
             encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as False - We will load our model anyway
             n_features = encoder.fc.in_features
-            output_dim = 10 #{TODO}- output
+            output_dim = 10 #{TODO}- output - cifar10
             src_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features/output_dim=10
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
@@ -403,6 +403,10 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             # mnist、cifar test process synthia is different
             if data in ['mnist', 'mnist_t', 'mnistvis']:
                 teacc = evaluate(src_net, teloader) #{TODO} -Add evaluate_cifar10
+            elif data in ['cifar10']:
+                teacc = evaluate(src_net, teloader)
+            
+            #Save Best Model
             if best_acc < teacc:
                 best_acc = teacc
                 torch.save({'cls_net':src_net.state_dict()}, os.path.join(svroot, f'{i_tgt}-best.pkl'))
@@ -454,12 +458,14 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         g1_list.append(g1_net)
 
         # Test the generalization effect of the i_tgt model
-        from main_test_digit import evaluate_digit
+        from main_test_digit import evaluate_digit, evaluate_image
         if data == 'mnist':
             pklpath = f'{svroot}/{i_tgt}-best.pkl'
             #{TODO}- added backbone param
             evaluate_digit(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained, projection_dim= projection_dim) #Pretrained set as False, it will load our model instead.
-
+        elif data == 'cifar10':
+            pklpath = f'{svroot}/{i_tgt}-best.pkl'
+            evaluate_image(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained, projection_dim= projection_dim)
     writer.close()
 
 if __name__=='__main__':

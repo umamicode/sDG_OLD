@@ -6,6 +6,8 @@ from torch.utils.data import Dataset, TensorDataset
 from torchvision import transforms
 from torchvision.datasets import MNIST, USPS, SVHN, CIFAR10, STL10
 
+import tensorflow_datasets as tfds
+
 import os
 import pickle
 import numpy as np
@@ -14,6 +16,8 @@ from PIL import Image
 
 from tools.autoaugment import SVHNPolicy, CIFAR10Policy
 from tools.randaugment import RandAugment
+
+HOME = os.environ['HOME']
 
 class myTensorDataset(Dataset):
     def __init__(self, x, y, transform=None, twox=False):
@@ -33,7 +37,7 @@ class myTensorDataset(Dataset):
                 return (x, x2), y
         return x, y
 
-HOME = os.environ['HOME']
+
 
 def resize_imgs(x, size):
     ''' Only for single channel images 
@@ -120,7 +124,7 @@ def load_cifar10(split='train', translate=None, twox=False, ntr=None, autoaug=No
                     1 Return a single channel image
     '''
     path = f'data/cifar10-{split}.pkl'
-    cifar10_transforms_train= transforms.Compose([transforms.Resize((224,224))])
+    cifar10_transforms_train= transforms.Compose([transforms.Resize((32,32))]) #224,224
     if not os.path.exists(path):
         dataset = CIFAR10(f'{HOME}/.pytorch/CIFAR10', train=(split=='train'), download=True, transform= cifar10_transforms_train)
         x, y = dataset.data, dataset.targets
@@ -157,7 +161,7 @@ def load_cifar10(split='train', translate=None, twox=False, ntr=None, autoaug=No
         transform.append(transforms.RandomAffine(0, [translate, translate]))
     if autoaug is not None:
         if autoaug == 'AA':
-            transform.append(SVHNPolicy())
+            transform.append(CIFAR10Policy()) #originally SVHNPolicy()
         elif autoaug == 'RA':
             transform.append(RandAugment(3,4))
     transform.append(transforms.ToTensor())
@@ -217,6 +221,53 @@ def load_mnist_m(split='train', channels=3):
     dataset = TensorDataset(x, y)
     return dataset
 
+def load_stl10(split='train', channels=3):
+    STL10_transforms_train= transforms.Compose([transforms.Resize((32,32))])
+    dataset = STL10(f'{HOME}/.pytorch/STL10', split=split, download=True, transform= STL10_transforms_train)
+    x, y = dataset.data, dataset.labels
+    x = x.astype('float32')/255.
+    x, y = torch.tensor(x), torch.tensor(y)
+    if channels == 1:
+        x = x.mean(1, keepdim=True)
+    dataset = TensorDataset(x, y)
+    return dataset
+
+
+
+def load_cifar10c(split='train', translate=None, twox=False, ntr=None, autoaug=None, channels=3):
+    path = f'data/cifar10c-{split}.pkl'
+    cifar10_transforms_train= transforms.Compose([transforms.Resize((32,32))]) #224,224
+    if not os.path.exists(path):
+        dataset = tfds.as_numpy(tfds.load('cifar10_corrupted', split= split, shuffle_files= True, batch_size= -1))
+        x, y = dataset['image'], dataset['label']
+        #dataset = CIFAR10(f'{HOME}/.pytorch/CIFAR10', train=(split=='train'), download=True, transform= cifar10_transforms_train)
+        #x, y = dataset.data, dataset.targets
+        
+        #Only Select First 10k images as train
+        #if split=='train':
+        #    x, y = x[0:10000], y[0:10000]
+        
+        #[TODO] - solve -> AttributeError: 'numpy.ndarray' object has no attribute 'numpy'
+        #x = torch.tensor(resize_imgs(x.numpy(), 32))
+        #x = torch.tensor(resize_imgs_dkcho(x, 32)) # x-> torch.Size([10000, 32, 32, 3])
+        x= torch.tensor(x)
+        x = (x.float()/255.)#.unsqueeze(1).repeat(1,3,1,1)  #<class 'torch.Tensor'>
+        x= x.permute(0,3,1,2) #[batchsize,w,h,channel] -> [batchsize, channel, w,h]
+        y = torch.tensor(y)
+        with open(path, 'wb') as f:
+            pickle.dump([x, y], f)
+    with open(path, 'rb') as f:
+        x, y = pickle.load(f)
+        if channels == 1:
+            x = x[:,0:1,:,:]
+    
+    if ntr is not None:
+        x, y = x[0:ntr], y[0:ntr]
+    
+    # Without Data Augmentation
+    if (translate is None) and (autoaug is None):
+        dataset = TensorDataset(x, y)
+        return dataset
 if __name__=='__main__':
     dataset = load_mnist(split='train')
     print('mnist train', len(dataset))
@@ -230,4 +281,7 @@ if __name__=='__main__':
     print('usps', len(dataset))
     dataset = load_syndigit(split='test')
     print('syndigit', len(dataset))
-
+    dataset= load_stl10(split='test')
+    print('stl10', len(dataset))
+    dataset= load_cifar10c(split='test')
+    print('cifar10-c', len(dataset))

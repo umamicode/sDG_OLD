@@ -30,6 +30,7 @@ from network import mnist_net, res_net
 import data_loader
 
 HOME = os.environ['HOME']
+os.environ['TF_CPP_MIN_LOG_LEVEL']= '2'
 
 @click.command()
 @click.option('--gpu', type=str, default='0', help='Choose GPU')
@@ -89,7 +90,7 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
         cls_net= mnist_net.ConvNetVis().cuda() 
         cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
     
-    elif data == 'cifar10':
+    elif data in ['cifar10']:
         
         # Load Dataset
         trset = data_loader.load_cifar10(split='train')
@@ -167,7 +168,10 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
             teacc = evaluate(cls_net, teloader)
         elif 'synthia' in data:
             teacc = evaluate_seg(cls_net, teloader, nclass) # Counting miou
-
+        #[TODO] add cifar10 evaluation
+        elif data in ['cifar10']:
+            teacc = evaluate(cls_net, teloader)
+            
         if best_acc < teacc:
             best_acc = teacc
             torch.save({'cls_net':cls_net.state_dict()}, os.path.join(svroot, 'best.pkl'))
