@@ -277,52 +277,13 @@ class BarlowTwinsLoss(nn.Module):
         contrast_feature = (contrast_feature - contrast_feature.mean(0)) / contrast_feature.std(0)
         #anchor_feature,contrast_feature = self.bn(anchor_feature), self.bn(contrast_feature)
         #{TODO}- 2. MatMul for cross-correlation matrix
-        c= torch.matmul(anchor_feature, contrast_feature.T) / batch_size
+        c= torch.matmul(anchor_feature, contrast_feature.T) #/ batch_size # [TODO]- 11/26 midnight (we don't need this batch_size )
         c.div_(batch_size)
         #{TODO}- 3. Loss
         #c_diff= (c- torch.eye(anchor_feature.shape)).pow(2)
         on_diag = torch.diagonal(c).add_(-1).pow_(2).sum()
         off_diag = off_diagonal(c).pow_(2).sum()
-        loss = on_diag + 0.0051 * off_diag
-        
-        #Unfreeze to SupConLoss
-        '''
-        # compute logits (shape: torch.Size([256, 256]) #Matrix Multiplication
-        anchor_dot_contrast = torch.div(
-            torch.matmul(anchor_feature, contrast_feature.T),
-            self.temperature)
-        # for numerical stability
-        logits_max, _ = torch.max(anchor_dot_contrast, dim=1, keepdim=True)
-        logits = anchor_dot_contrast - logits_max.detach()
-
-
-        # tile mask
-        mask = mask.repeat(anchor_count, contrast_count)
-        # mask-out self-contrast cases
-        logits_mask = torch.scatter(
-            torch.ones_like(mask),
-            1,
-            torch.arange(batch_size * anchor_count).view(-1, 1).to(device),
-            0
-        )
-
-        mask = mask * logits_mask #Mask Shape: torch.Size([256, 256])
-        # compute log_prob
-        exp_logits = torch.exp(logits) * logits_mask #Exp Logits Shape: torch.Size([256, 256])
-        
-        #log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
-        if adv:
-            log_prob = torch.log( 1- exp_logits / (exp_logits.sum(1, keepdim=True)+1e-6) - 1e-6)
-        else:
-            log_prob = torch.log( exp_logits / (exp_logits.sum(1, keepdim=True)+1e-6) +1e-6)
-
-        # compute mean of log-likelihood over positive
-        mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)
-
-        # loss
-        loss = - (self.temperature / self.base_temperature) * mean_log_prob_pos
-        loss = loss.view(anchor_count, batch_size).mean()  # This is the contrastive loss. 
-        '''
+        loss = on_diag + 0.0051 * off_diag #lambda=0.0051 suggested in barlowtwins paper
         
         return loss
 

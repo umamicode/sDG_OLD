@@ -93,7 +93,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     elif data in ['pacs']:
         trset = data_loader.load_pacs(split='train')
         teset = data_loader.load_pacs(split='test')
-        imsize = [32, 32]
+        imsize = [32, 32] #image size is (224,224)
         #trloader = DataLoader(trset, batch_size=batchsize, num_workers=8, shuffle=True, drop_last=True)
         #teloader = DataLoader(teset, batch_size=batchsize, num_workers=8, shuffle=False)
 

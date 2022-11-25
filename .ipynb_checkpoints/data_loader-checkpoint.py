@@ -266,43 +266,7 @@ def load_cifar10c(split='train', translate=None, twox=False, ntr=None, autoaug=N
     if (translate is None) and (autoaug is None):
         dataset = TensorDataset(x, y)
         return dataset
-
-def load_cifar10_1(split='train', translate=None, twox=False, ntr=None, autoaug=None, channels=3):
-    path = f'data/cifar10_1-{split}.pkl'
-    cifar10_transforms_train= transforms.Compose([transforms.Resize((32,32))]) #224,224
-    if not os.path.exists(path):
-        dataset = tfds.as_numpy(tfds.load('cifar10_1', split= split, shuffle_files= True, batch_size= -1))
-        x, y = dataset['image'], dataset['label']
-        #dataset = CIFAR10(f'{HOME}/.pytorch/CIFAR10', train=(split=='train'), download=True, transform= cifar10_transforms_train)
-        #x, y = dataset.data, dataset.targets
-        
-        #Only Select First 10k images as train
-        #if split=='train':
-        #    x, y = x[0:10000], y[0:10000]
-        
-        #[TODO] - solve -> AttributeError: 'numpy.ndarray' object has no attribute 'numpy'
-        #x = torch.tensor(resize_imgs(x.numpy(), 32))
-        #x = torch.tensor(resize_imgs_dkcho(x, 32)) # x-> torch.Size([10000, 32, 32, 3])
-        x= torch.tensor(x)
-        x = (x.float()/255.)#.unsqueeze(1).repeat(1,3,1,1)  #<class 'torch.Tensor'>
-        x= x.permute(0,3,1,2) #[batchsize,w,h,channel] -> [batchsize, channel, w,h]
-        y = torch.tensor(y)
-        with open(path, 'wb') as f:
-            pickle.dump([x, y], f)
-    with open(path, 'rb') as f:
-        x, y = pickle.load(f)
-        if channels == 1:
-            x = x[:,0:1,:,:]
     
-    if ntr is not None:
-        x, y = x[0:ntr], y[0:ntr]
-    
-    # Without Data Augmentation
-    if (translate is None) and (autoaug is None):
-        dataset = TensorDataset(x, y)
-        return dataset
-    
-
 #PACS
 def load_pacs(split='train', translate=None, twox=False, ntr=None, autoaug=None, channels=3):
     #PACS Dataset
@@ -325,7 +289,7 @@ def load_pacs(split='train', translate=None, twox=False, ntr=None, autoaug=None,
     if not os.path.exists(path):
         
         dataset= ImageFolder(pacs_convertor[split], transform=pacs_transforms_train)
-        train_size = int(0.7 * len(dataset))
+        train_size = int(0.9 * len(dataset))
         test_size = len(dataset) - train_size
         train_set, test_set = random_split(dataset, [train_size, test_size])
 

@@ -39,13 +39,25 @@ class ConvNet(nn.Module):
         self.cls_head_src = nn.Linear(self.n_features, self.output_dim)
         self.cls_head_tgt = nn.Linear(self.n_features, self.output_dim)
         #self.pro_head = nn.Linear(self.n_features, self.projection_dim)
-        #[TODO]- MLP for Contrastive Learning
+        #[TODO]- MLP for Contrastive Learning -Following model design of BarlowTwins Paper
+        self.pro_head = nn.Sequential(
+            nn.Linear(self.n_features, self.n_features, bias=False),
+            nn.BatchNorm1d(self.n_features),
+            nn.ReLU(),
+            nn.Linear(self.n_features, self.n_features, bias=False),
+            nn.BatchNorm1d(self.n_features),
+            nn.ReLU(),
+            nn.Linear(self.n_features, self.projection_dim, bias=False),
+
+        )
+        '''
+        #OG pro_head
         self.pro_head = nn.Sequential(
             nn.Linear(self.n_features, self.n_features, bias=False),
             nn.ReLU(),
             nn.Linear(self.n_features, self.projection_dim, bias=False),
-        )
-
+            
+        )'''
     def forward(self, x, mode='test'):
         in_size = x.size(0)
         '''

@@ -111,10 +111,11 @@ def evaluate_image(gpu, modelpath, svpath, backbone, pretrained,projection_dim, 
     str2fun = { 
         'cifar10': data_loader.load_cifar10,
         'cifar10c': data_loader.load_cifar10c,
+        'cifar10_1': data_loader.load_cifar10_1,
         'stl10': data_loader.load_stl10,
         
         }   
-    columns = ['cifar10','cifar10c','stl10']
+    columns = ['cifar10','cifar10c','cifar10_1','stl10']
     rst = []
     for data in columns:
         teset = str2fun[data]('test', channels=channels)
@@ -166,7 +167,7 @@ def evaluate_pacs(gpu, modelpath, svpath, backbone, pretrained,projection_dim, c
             teset = str2fun[data]('test', channels=channels)
         elif data in ['art','cartoon','sketch']:
             teset= str2fun[data](split= data,channels=channels)
-        teloader = DataLoader(teset, batch_size=128, num_workers=8,drop_last=True) #solved error with drop_last
+        teloader = DataLoader(teset, batch_size=128, num_workers=8,drop_last=True, shuffle=True) #solved error with drop_last/ added shuffle=True(11/25)
         '''
         <Solved Error>
         ValueError: Expected more than 1 value per channel when training, got input size torch.Size([1, 512, 1, 1])

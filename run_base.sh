@@ -3,9 +3,9 @@
 # $2 runid
 
 # base method
-data=pacs #(mnist/cifar10/pacs)
+data=cifar10 #(mnist/cifar10/pacs)
 backbone=resnet18 #(custom/resnet18/resnet50)
-pretrained=True
+pretrained=False
 projection_dim=128 #Higher Dim. for BarlowTwins (custom default:128/ resnet default: 128)
 epochs=100 #default:50
 
