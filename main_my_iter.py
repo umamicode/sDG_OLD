@@ -147,6 +147,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     
     elif data in ['cifar10']:
         if backbone == 'custom':
+            #NOT RECOMMENDED: CIFAR10 experiment was designed for Resnet Models
+            raise ValueError('WORK IN PROGRESS: PLEASE USE Resnet-18/50 For CIFAR10')
             src_net = mnist_net.ConvNet(projection_dim).cuda()
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
@@ -161,6 +163,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
     elif data in ['pacs']:
         if backbone == 'custom':
+            #NOT RECOMMENDED: CIFAR10 experiment was designed for Resnet Models
             raise ValueError('WORK IN PROGRESS: PLEASE USE Resnet-18/50 For PACS')
             #cls_net = mnist_net.ConvNet(projection_dim=projection_dim).cuda()
             #cls_opt = optim.Adam(cls_net.parameters(), lr=lr)

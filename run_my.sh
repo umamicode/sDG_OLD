@@ -30,11 +30,11 @@ gen=cnn
 interpolation=img
 
 
-data=cifar10 #mnist/cifar10/pacs
-backbone=resnet18 #custom/resnet18/resnet50
+data=pacs #mnist/cifar10/pacs
+backbone=custom #(custom/resnet18/resnet50) #mnist: custom/resnet #cifar10/pacs: resnet
 pretrained=False #Only to load right base model. my_iter process is set as pretrained=False.
-projection_dim=128 #default: (mnist: 128/ cifar-10:)
-loss_fn=supcon #supcon/relic/barlowtwins
+projection_dim=4096 #default: (mnist: 128/ cifar-10:)
+loss_fn=barlowtwins #supcon/relic/barlowtwins
 
 batchsize=128 #default:128
 

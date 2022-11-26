@@ -41,13 +41,13 @@ class ConvNet(nn.Module):
         #self.pro_head = nn.Linear(self.n_features, self.projection_dim)
         #[TODO]- MLP for Contrastive Learning -Following model design of BarlowTwins Paper
         self.pro_head = nn.Sequential(
-            nn.Linear(self.n_features, self.n_features, bias=False),
-            nn.BatchNorm1d(self.n_features),
+            nn.Linear(self.n_features, self.projection_dim, bias=False),  #self.n_features -> self.projection_dim
+            nn.BatchNorm1d(self.projection_dim),
             nn.ReLU(),
-            nn.Linear(self.n_features, self.n_features, bias=False),
-            nn.BatchNorm1d(self.n_features),
+            nn.Linear(self.projection_dim, self.projection_dim, bias=False),  #self.n_features -> self.projection_dim
+            nn.BatchNorm1d(self.projection_dim),
             nn.ReLU(),
-            nn.Linear(self.n_features, self.projection_dim, bias=False),
+            nn.Linear(self.projection_dim, self.projection_dim, bias=False), #self.n_features,self.projection_dim -> self.projection_dim,self.projection_dim
 
         )
         '''

@@ -4,9 +4,9 @@
 
 # base method
 data=cifar10 #(mnist/cifar10/pacs)
-backbone=resnet18 #(custom/resnet18/resnet50)
+backbone=custom #(custom/resnet18/resnet50) #mnist-custom/resnet #cifar10/pacs- resnet
 pretrained=False
-projection_dim=128 #Higher Dim. for BarlowTwins (custom default:128/ resnet default: 128)
+projection_dim=258 #Higher Dim. for BarlowTwins (custom default:128/ resnet default: 128)
 epochs=100 #default:50
 
 # Base Model Path
