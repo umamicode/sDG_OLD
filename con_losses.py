@@ -7,7 +7,11 @@ import torch.nn.functional as F
 
 class SupConLoss(nn.Module):
     """Supervised Contrastive Learning: https://arxiv.org/pdf/2004.11362.pdf.
-    It also supports the unsupervised contrastive loss in SimCLR"""
+    It also supports the unsupervised contrastive loss in SimCLR
+    Reference Code: https://github.com/lileicv/PDEN 
+    Original Author: Yonglong Tian (yonglong@mit.edu)
+    Date: May 07, 2020
+    """
     def __init__(self, temperature=0.07, contrast_mode='all',
                  base_temperature=0.07, device=None):
         super(SupConLoss, self).__init__()
@@ -207,12 +211,13 @@ class ReLICLoss(nn.Module):
 class BarlowTwinsLoss(nn.Module):
     """Supervised Contrastive Learning with ReLIC.
     It also supports the unsupervised contrastive loss in ReLIC"""
-    def __init__(self, temperature=0.07, contrast_mode='all',
+    def __init__(self, projection_dim, temperature=0.07, contrast_mode='all',
                  base_temperature=0.07, device=None):
         super(BarlowTwinsLoss, self).__init__()
         self.temperature = temperature
         self.contrast_mode = contrast_mode
         self.base_temperature = base_temperature
+        self.projection_dim= projection_dim #[TODO] - added to normalize loss
         self.device=device
         #self.bn = nn.BatchNorm1d(sizes[-1], affine=False)
 
@@ -283,7 +288,9 @@ class BarlowTwinsLoss(nn.Module):
         #c_diff= (c- torch.eye(anchor_feature.shape)).pow(2)
         on_diag = torch.diagonal(c).add_(-1).pow_(2).sum()
         off_diag = off_diagonal(c).pow_(2).sum()
-        loss = on_diag + 0.0051 * off_diag #lambda=0.0051 suggested in barlowtwins paper
+        loss = on_diag + 0.0051 * off_diag  #lambda=0.0051 suggested in barlowtwins paper
+        
+        #[TODO] - add normalization method using self.projection_dim 
         
         return loss
 

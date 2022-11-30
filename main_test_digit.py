@@ -45,7 +45,7 @@ def evaluate_digit(gpu, modelpath, svpath, backbone, pretrained,projection_dim, 
             cls_net = mnist_net.ConvNet(projection_dim).cuda()
         elif channels == 1:
             cls_net = mnist_net.ConvNet(projection_dim, imdim=channels).cuda()
-    elif backbone in ['resnet18','resnet50']:
+    elif backbone in ['resnet18','resnet50','wideresnet']:
         if channels == 3:
             encoder = get_resnet(backbone, pretrained= pretrained)
             n_features = encoder.fc.in_features
@@ -91,7 +91,7 @@ def evaluate_image(gpu, modelpath, svpath, backbone, pretrained,projection_dim, 
             cls_net = mnist_net.ConvNet(projection_dim).cuda()
         elif channels == 1:
             cls_net = mnist_net.ConvNet(projection_dim, imdim=channels).cuda()
-    elif backbone in ['resnet18','resnet50']:
+    elif backbone in ['resnet18','resnet50','wideresnet']:
         if channels == 3:
             encoder = get_resnet(backbone, pretrained= pretrained)
             n_features = encoder.fc.in_features
@@ -137,7 +137,7 @@ def evaluate_pacs(gpu, modelpath, svpath, backbone, pretrained,projection_dim, c
             cls_net = mnist_net.ConvNet(projection_dim).cuda()
         elif channels == 1:
             cls_net = mnist_net.ConvNet(projection_dim, imdim=channels).cuda()
-    elif backbone in ['resnet18','resnet50']:
+    elif backbone in ['resnet18','resnet50','wideresnet']:
         if channels == 3:
             encoder = get_resnet(backbone, pretrained= pretrained)
             n_features = encoder.fc.in_features

@@ -11,6 +11,15 @@ from network.modules.identity import Identity
 #[TODO]-added for check
 torch.autograd.set_detect_anomaly(True)
 
+def freeze_(model):
+    """Freeze model
+    Note that this function does not control BN
+    """
+    for p in model.parameters():
+        p.requires_grad_(False)
+
+
+
 class ConvNet(nn.Module):
     ''' The network structure is consistent with the SimCLR method
      '''

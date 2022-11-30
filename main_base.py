@@ -34,7 +34,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL']= '2'
 
 @click.command()
 @click.option('--gpu', type=str, default='0', help='Choose GPU')
-@click.option('--data', type=str, default='mnist', help='Dataset name (mnist/')
+@click.option('--data', type=str, default='mnist', help='Dataset name (mnist/cifar10/pacs')
 @click.option('--ntr', type=int, default=None, help='Select the first ntr samples of the training set')
 @click.option('--translate', type=float, default=None, help='Random translation data augmentation')
 @click.option('--autoaug', type=str, default=None, help='AA FastAA RA')
@@ -44,7 +44,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL']= '2'
 @click.option('--lr', type=float, default=1e-3)
 @click.option('--lr_scheduler', type=str, default='none', help='Learning Weight Decay')
 @click.option('--svroot', type=str, default='./saved', help='Project file save path')
-@click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50)')
+@click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50,wideresnet)')
 @click.option('--pretrained', type=str, default= 'False', help= 'Pretrained Backbone - ResNet18/50, Custom MNISTnet does not matter')
 @click.option('--projection_dim', type=int, default=128, help= "Projection Dimension of the representation vector for Resnet; Default: 128")
 
@@ -73,13 +73,20 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
         if backbone == 'custom':
             cls_net = mnist_net.ConvNet(projection_dim=projection_dim).cuda()
             cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
-        elif backbone in ['resnet18','resnet50']:
+        elif backbone in ['resnet18','resnet50','wideresnet']:
             encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
             n_features = encoder.fc.in_features
             output_dim= 10
             cls_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
             cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
-
+        '''
+        elif backbone in ['wideresnet']:
+            encoder= get_resnet(backbone,pretrained)
+            n_features = encoder.fc.in_features
+            output_dim= 10
+            cls_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
+            cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
+        '''
     elif data == 'mnistvis':
         trset = data_loader.load_mnist('train')
         teset = data_loader.load_mnist('test')
@@ -103,13 +110,21 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
         if backbone == 'custom':
             cls_net = mnist_net.ConvNet(projection_dim=projection_dim).cuda()
             cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
-        elif backbone in ['resnet18','resnet50']:
+        elif backbone in ['resnet18','resnet50','wideresnet']:
             encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
             n_features = encoder.fc.in_features
             output_dim= 10
             cls_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
             cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
             #cls_opt = optim.SGD(cls_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)
+        '''
+        elif backbone in ['wideresnet']:
+            encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
+            n_features = encoder.fc.in_features
+            output_dim= 10
+            cls_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
+            cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
+        '''
         ###### Old Code
         #[TODO- WideResNet?- MNIST_NET is too shallow]
         #cls_net = wideresnet.WideResNet(16, 10, 4).cuda()
@@ -130,14 +145,22 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
             raise ValueError('WORK IN PROGRESS: PLEASE USE Resnet-18/50 For PACS')
             #cls_net = mnist_net.ConvNet(projection_dim=projection_dim).cuda()
             #cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
-        elif backbone in ['resnet18','resnet50']:
+        elif backbone in ['resnet18','resnet50','wideresnet']:
             encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
             n_features = encoder.fc.in_features
             output_dim= 7
             cls_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
             cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
             #cls_opt = optim.SGD(cls_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)
-        
+        '''
+        elif backbone in ['wideresnet']:
+            raise ValueError('WORK IN PROGRESS: PLEASE USE Resnet-18/50 For PACS')
+            encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
+            n_features = encoder.fc.in_features
+            output_dim= 7
+            cls_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
+            cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
+        '''
         if lr_scheduler == 'cosine':
             scheduler = optim.lr_scheduler.CosineAnnealingLR(cls_opt, epochs)
 

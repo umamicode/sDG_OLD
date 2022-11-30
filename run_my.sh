@@ -30,10 +30,10 @@ gen=cnn
 interpolation=img
 
 
-data=pacs #mnist/cifar10/pacs
-backbone=custom #(custom/resnet18/resnet50) #mnist: custom/resnet #cifar10/pacs: resnet
-pretrained=False #Only to load right base model. my_iter process is set as pretrained=False.
-projection_dim=4096 #default: (mnist: 128/ cifar-10:)
+data=cifar10 #mnist/cifar10/pacs
+backbone=resnet18 #(custom/resnet18/resnet50/wideresnet) #mnist: custom/resnet #cifar10/pacs: resnet
+pretrained=True #Only to load right base model. my_iter process is set as pretrained=False.
+projection_dim=128 #default: (mnist: 128/ cifar-10:)
 loss_fn=barlowtwins #supcon/relic/barlowtwins
 
 batchsize=128 #default:128
@@ -47,4 +47,3 @@ python3 main_my_iter.py --gpu $1 --data ${data} --gen $gen --backbone ${backbone
 python3 main_test_digit.py --gpu $1 --modelpath ${svroot}/${max_tgt}-best.pkl --svpath ${svroot}/test.log --backbone ${backbone} --projection_dim ${projection_dim} --data ${data}
 
 #done
-

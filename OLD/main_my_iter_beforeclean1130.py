@@ -11,7 +11,7 @@ from tensorboardX import SummaryWriter
 
 #PRISM
 #[TODO]
-from network.modules import get_resnet, freeze_
+from network.modules import get_resnet
 from network.modules.transformations import TransformsRelic
 from network.modules.sync_batchnorm import convert_model
 
@@ -54,7 +54,7 @@ HOME = os.environ['HOME']
 @click.option('--w_tgt', type=float, default=1.0, help='target domain sample update tasknet intensity control')
 @click.option('--interpolation', type=str, default='pixel', help='Interpolate between the source domain and the generated domain to get a new domain, two ways：img/pixel')
 @click.option('--loss_fn', type=str, default='supcon', help= 'Loss Functions (supcon/relic/barlowtwins')
-@click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50,wideresnet')
+@click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50')
 @click.option('--pretrained', type=str, default= 'False', help= 'Pretrained Backbone - ResNet18/50, Custom MNISTnet does not matter')
 @click.option('--projection_dim', type=int, default=128, help= "Projection Dimension of the representation vector for Resnet; Default: 128")
 
@@ -130,7 +130,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
-        elif backbone in ['resnet18','resnet50','wideresnet']:
+        elif backbone in ['resnet18','resnet50']:
             encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as False - We will load our model anyway
             n_features = encoder.fc.in_features
             output_dim = 10 #{TODO}- output
@@ -138,17 +138,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
-        
-        '''
-        elif backbone in ['wideresnet']:
-            encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as False - We will load our model anyway
-            n_features = encoder.fc.in_features
-            output_dim = 10 #{TODO}- output
-            src_net= res_net.ConvNet(encoder, projection_dim, n_features,output_dim).cuda() #projection_dim/ n_features/output_dim=10
-            saved_weight = torch.load(ckpt)
-            src_net.load_state_dict(saved_weight['cls_net'])
-            src_opt = optim.Adam(src_net.parameters(), lr=lr)
-        '''
+    
     elif data == 'mnistvis':
         src_net = mnist_net.ConvNetVis().cuda()
         saved_weight = torch.load(ckpt)
@@ -163,7 +153,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
-        elif backbone in ['resnet18','resnet50','wideresnet']:
+        elif backbone in ['resnet18','resnet50']:
             encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as False - We will load our model anyway
             n_features = encoder.fc.in_features
             output_dim = 10 #{TODO}- output - cifar10
@@ -171,16 +161,6 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
-        '''
-        elif backbone in ['wideresnet']:
-            encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as False - We will load our model anyway
-            n_features = encoder.fc.in_features
-            output_dim = 10 #{TODO}- output - cifar10
-            src_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features/output_dim=10
-            saved_weight = torch.load(ckpt)
-            src_net.load_state_dict(saved_weight['cls_net'])
-            src_opt = optim.Adam(src_net.parameters(), lr=lr)
-        '''
     elif data in ['pacs']:
         if backbone == 'custom':
             #NOT RECOMMENDED: PACS experiment was designed for Resnet Models
@@ -189,7 +169,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             # src_net = mnist_net.ConvNet(projection_dim).cuda()
             #src_net.load_state_dict(saved_weight['cls_net'])
             #src_opt = optim.Adam(src_net.parameters(), lr=lr)
-        elif backbone in ['resnet18','resnet50','wideresnet']:
+        elif backbone in ['resnet18','resnet50']:
             encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
             n_features = encoder.fc.in_features
             output_dim= 7
@@ -197,17 +177,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
-        '''
-        elif backbone in ['wideresnet']:
-            raise ValueError('WORK IN PROGRESS: PLEASE USE Resnet-18/50 For PACS')
-            encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
-            n_features = encoder.fc.in_features
-            output_dim= 7
-            src_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features/output_dim=10
-            saved_weight = torch.load(ckpt)
-            src_net.load_state_dict(saved_weight['cls_net'])
-            src_opt = optim.Adam(src_net.parameters(), lr=lr)
-        '''
+
     cls_criterion = nn.CrossEntropyLoss()
     ##########################################
     #[TODO]- Add ReLIC LOSS (221112)
@@ -365,7 +335,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 '''
                 ##########################################
                 #[TODO] - Weight to ConLOSS
-                loss = src_cls_loss + w_tgt*con_loss + w_tgt*tgt_cls_loss # w_tgt default 1.0
+                loss = src_cls_loss + w_tgt*(con_loss/projection_dim) + w_tgt*tgt_cls_loss # w_tgt default 1.0
                 src_opt.zero_grad()
                 if flag_fixG:
                     loss.backward(retain_graph=True)
@@ -378,12 +348,73 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 #Scenario 1 Ends Here
                 #''' #Uncomment to Close
                 ##############################################################################
+                
                 ##[Scenario 2]
                 #Scenario 2 Starts Here
-                # Deleted Scenario 2 Code (Please Check ./OLD/main_my_iter_beforeclean1130.py for more info.)
-                ##Scenario 2 Ends Here
-                ##############################################################################
+                ''' #Uncomment to Close
+                
+                ###[TODO]- F(src_net): CHANGE ORDER WITH G###
+                
+                # update src_net
+                zall = torch.cat([z_tgt.unsqueeze(1), zsrc], dim=1)
+                
+                #con_loss = con_criterion(zall, adv=False) #{TODO} .clone().detach()
+                ##########################################
+                #[TODO]- Add ReLIC LOSS for Task Model(src_net) (221112)
+                # Takes zall = torch.cat([z_tgt.unsqueeze(1), zsrc], dim=1) as input.
+                if relic==False:
+                    con_loss = con_criterion(zall.clone().detach(), adv=False) #[TODO] GCD
+                elif relic== True:
+                    con_loss = con_criterion(zall.clone().detach(), adv=False) #[TODO] GCD
+                ##########################################
 
+
+                loss = src_cls_loss + w_tgt*con_loss + w_tgt*tgt_cls_loss # w_tgt default 1.0
+                src_opt.zero_grad()
+                if flag_fixG:
+                    loss.backward()
+                else:
+                    loss.backward()
+                src_opt.step()
+                
+                ###[TODO]- G(G1/2_opt): CHANGE ORDER WITH F###
+                # update g1_net
+                if flag_fixG:
+                    # fix G，training only tasknet
+                    con_loss_adv = torch.tensor(0)
+                    div_loss = torch.tensor(0)
+                    cyc_loss = torch.tensor(0)
+                else:
+                    idx = np.random.randint(0, zsrc.size(1))
+                    zall = torch.cat([z_tgt.unsqueeze(1), zsrc[:,idx:idx+1].detach()], dim=1)
+                    
+                    #con_loss_adv = con_criterion(zall.clone().detach(), adv=True) #{TODO} .clone().detach()
+                    #[TODO]- Add ReLIC LOSS for Generator(G1) (221112)
+                    # Takes {zall = torch.cat([z_tgt.unsqueeze(1), zsrc[:,idx:idx+1].detach()], dim=1)} as input.
+                    if relic ==False:
+                        con_loss_adv = con_criterion(zall.clone().detach(), adv=True) #[TODO ]GCD
+                    elif relic == True:
+                        con_loss_adv = con_criterion(zall.clone().detach(), adv=True) #[TODO ]GCD
+
+                    if gen in ['cnn', 'hr']:
+                        div_loss = (x_tgt-x2_tgt).abs().mean([1,2,3]).clamp(max=div_thresh).mean() # Constraint Generator Divergence
+                        x_tgt_rec = g2_net(x_tgt)
+                        cyc_loss = F.mse_loss(x_tgt_rec, x)
+                    elif gen == 'stn':
+                        div_loss = (H_tgt-H2_tgt).abs().mean([1,2]).clamp(max=div_thresh).mean()
+                        cyc_loss = torch.tensor(0).cuda()
+                    loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss + w_info*con_loss_adv
+                    g1_opt.zero_grad()
+                    if g2_opt is not None:
+                        g2_opt.zero_grad()
+                    loss.backward()
+                    g1_opt.step()
+                    if g2_opt is not None:
+                        g2_opt.step()
+                
+                ''' #Uncomment to Close
+                ##Scenario 2 Ends Here
+                
                 # update learning rate
                 if lr_scheduler in ['cosine']:
                     scheduler.step()
