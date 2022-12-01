@@ -14,19 +14,13 @@ from torchvision.utils import make_grid
 import torchvision.transforms as transforms
 from tensorboardX import SummaryWriter
 
-#PRISM
-#[TODO]
-from network.modules import get_resnet
-from network.modules.transformations import TransformsRelic
-from network.modules.sync_batchnorm import convert_model
-
-
 import os
 import click
 import time
 import numpy as np
 
 from network import mnist_net, res_net
+from network.modules import get_resnet
 import data_loader
 
 HOME = os.environ['HOME']
@@ -79,15 +73,8 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
             output_dim= 10
             cls_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
             cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
-        '''
-        elif backbone in ['wideresnet']:
-            encoder= get_resnet(backbone,pretrained)
-            n_features = encoder.fc.in_features
-            output_dim= 10
-            cls_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
-            cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
-        '''
-    elif data == 'mnistvis':
+        
+    elif data in ['mnistvis']:
         trset = data_loader.load_mnist('train')
         teset = data_loader.load_mnist('test')
         trloader = DataLoader(trset, batch_size=batchsize, num_workers=8, \
@@ -105,8 +92,6 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
         trloader = DataLoader(trset, batch_size=batchsize, num_workers=8, shuffle=True, drop_last=True)
         teloader = DataLoader(teset, batch_size=batchsize, num_workers=8, shuffle=False)
         
-        ######
-        
         if backbone == 'custom':
             cls_net = mnist_net.ConvNet(projection_dim=projection_dim).cuda()
             cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
@@ -116,20 +101,13 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
             output_dim= 10
             cls_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
             cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
+            #cls_opt = optim.SGD(cls_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4) 
+        
+            ###### Old Code
+            #[TODO- WideResNet?- MNIST_NET is too shallow]
+            #cls_net = wideresnet.WideResNet(16, 10, 4).cuda()
+            #cls_net= mnist_net.ConvNet().cuda()
             #cls_opt = optim.SGD(cls_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)
-        '''
-        elif backbone in ['wideresnet']:
-            encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
-            n_features = encoder.fc.in_features
-            output_dim= 10
-            cls_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
-            cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
-        '''
-        ###### Old Code
-        #[TODO- WideResNet?- MNIST_NET is too shallow]
-        #cls_net = wideresnet.WideResNet(16, 10, 4).cuda()
-        #cls_net= mnist_net.ConvNet().cuda()
-        #cls_opt = optim.SGD(cls_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)
         
         if lr_scheduler == 'cosine':
             scheduler = optim.lr_scheduler.CosineAnnealingLR(cls_opt, epochs)
@@ -152,18 +130,8 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
             cls_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
             cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
             #cls_opt = optim.SGD(cls_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)
-        '''
-        elif backbone in ['wideresnet']:
-            raise ValueError('WORK IN PROGRESS: PLEASE USE Resnet-18/50 For PACS')
-            encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
-            n_features = encoder.fc.in_features
-            output_dim= 7
-            cls_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
-            cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
-        '''
         if lr_scheduler == 'cosine':
             scheduler = optim.lr_scheduler.CosineAnnealingLR(cls_opt, epochs)
-
 
     elif 'synthia' in data:
         # Load Dataset
@@ -179,6 +147,7 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
         # For synthia: adding weight_decay will drop 1-2 points
         if lr_scheduler == 'cosine':
             scheduler = optim.lr_scheduler.CosineAnnealingLR(cls_opt, epochs*len(trloader))
+    
     
     cls_criterion = nn.CrossEntropyLoss()
 
@@ -213,9 +182,8 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
         cls_net.eval()
         if data in ['mnist', 'mnist_t', 'cifar10', 'mnistvis']:
             teacc = evaluate(cls_net, teloader)
-        elif 'synthia' in data:
+        elif data in ['synthia']:
             teacc = evaluate_seg(cls_net, teloader, nclass) # Counting miou
-        #[TODO] add cifar10 evaluation
         elif data in ['cifar10']:
             teacc = evaluate(cls_net, teloader)
         elif data in ['pacs']:

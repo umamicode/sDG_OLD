@@ -9,6 +9,12 @@ from torchvision.utils import make_grid
 import torchvision.transforms as transforms
 from tensorboardX import SummaryWriter
 
+#[TODO]
+from network.modules import get_resnet, freeze_
+from network.modules.transformations import TransformsRelic
+from network.modules.sync_batchnorm import convert_model
+
+
 import os
 import click
 import time
@@ -17,7 +23,6 @@ import copy
 
 from con_losses import SupConLoss, ReLICLoss, BarlowTwinsLoss
 from network import mnist_net,res_net, generator
-from network.modules import get_resnet, freeze, unfreeze, freeze_, unfreeze_
 import data_loader
 from main_base import evaluate
 
@@ -184,12 +189,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     ##########################################    
     #Create Oracle Model
     #src_net_copy= copy.deepcopy(src_net)
-    #freeze("encoder",src_net_copy)
-    
-    #Check freeze condition
-    #print(src_net_copy.encoder.layer1[0].conv1.weight.requires_grad)
-    #print(src_net_copy.pro_head[0].weight.requires_grad)
-    
+   
     ##########################################
     # Train
     global_best_acc = 0

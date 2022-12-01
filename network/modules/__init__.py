@@ -5,4 +5,4 @@ from .lars import LARS
 from .resnet import get_resnet
 from .gather import GatherLayer
 from .gordian_loss import Gordian_Loss
-from .freeze import freeze_
+from .freeze import freeze, unfreeze, freeze_, unfreeze_

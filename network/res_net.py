@@ -124,9 +124,6 @@ class ConvNetVis(nn.Module):
         out3 = self.relu3(self.fc1(out2))
         out4 = self.relu4(self.fc2(out3))
         
-
-
-
         if mode == 'test':
             p = self.cls_head_src(out4)
             return p
