@@ -7,6 +7,7 @@ import torchvision
 
 from network.modules.resnet_hacks import modify_resnet_model
 from network.modules.identity import Identity
+from collections import OrderedDict
 
 #[TODO]-added for check
 torch.autograd.set_detect_anomaly(True)
@@ -23,7 +24,7 @@ def freeze_(model):
 class ConvNet(nn.Module):
     ''' The network structure is consistent with the SimCLR method
      '''
-    def __init__(self, encoder, projection_dim, n_features, output_dim, imdim=3):
+    def __init__(self, encoder, projection_dim, n_features, output_dim, imdim=3, oracle= False):
         super(ConvNet, self).__init__()
         '''
         self.conv1 = nn.Conv2d(imdim, 64, kernel_size=5, stride=1, padding=0)
@@ -41,6 +42,10 @@ class ConvNet(nn.Module):
         self.projection_dim= projection_dim
         self.n_features= n_features
         self.output_dim= output_dim
+        #added for miro
+        self.oracle= oracle
+        self.selected_out = OrderedDict()
+        self.fhooks=[]
         
         # Replace the fc layer with an Identity function
         self.encoder.fc = Identity()
@@ -57,7 +62,6 @@ class ConvNet(nn.Module):
             nn.BatchNorm1d(self.projection_dim),
             nn.ReLU(),
             nn.Linear(self.projection_dim, self.projection_dim, bias=False), #self.n_features,self.projection_dim -> self.projection_dim,self.projection_dim
-
         )
         '''
         #OG pro_head
@@ -67,6 +71,20 @@ class ConvNet(nn.Module):
             nn.Linear(self.n_features, self.projection_dim, bias=False),
             
         )'''
+        #ORACLE for MIRO
+        
+    def get_hook(self):   
+        for i,l in enumerate(list(self.encoder._modules.keys())):
+            self.fhooks.append(getattr(self.encoder,l).register_forward_hook(self.forward_hook(l)))
+        
+            #if i in self.output_layers:
+            #    self.fhooks.append(getattr(self.encoder,l).register_forward_hook(self.forward_hook(l)))
+        
+    def forward_hook(self,layer_name):
+        def hook(module, input, output):
+            self.selected_out[layer_name] = output
+        return hook    
+        
     def forward(self, x, mode='test'):
         in_size = x.size(0)
         '''
@@ -89,6 +107,8 @@ class ConvNet(nn.Module):
         elif mode == 'p_f':
             p = self.cls_head_src(out4)
             return p, out4
+        elif mode == 'encoder':
+            return out4
         #elif mode == 'target':
         #    p = self.cls_head_tgt(out4)
         #    z = self.pro_head(out4)

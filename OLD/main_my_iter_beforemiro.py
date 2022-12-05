@@ -15,11 +15,9 @@ import time
 import numpy as np
 import copy
 
-from con_losses import SupConLoss, ReLICLoss, BarlowTwinsLoss, VicReg
+from con_losses import SupConLoss, ReLICLoss, BarlowTwinsLoss
 from network import mnist_net,res_net, generator
-from network.modules import get_resnet, freeze, unfreeze, freeze_, unfreeze_, LARS
-from tools.miro_utils import *
-from tools.farmer import *
+from network.modules import get_resnet, freeze, unfreeze, freeze_, unfreeze_
 import data_loader
 from main_base import evaluate
 
@@ -50,7 +48,7 @@ HOME = os.environ['HOME']
 @click.option('--div_thresh', type=float, default=0.1, help='div_loss threshold')
 @click.option('--w_tgt', type=float, default=1.0, help='target domain sample update tasknet intensity control')
 @click.option('--interpolation', type=str, default='pixel', help='Interpolate between the source domain and the generated domain to get a new domain, two ways：img/pixel')
-@click.option('--loss_fn', type=str, default='supcon', help= 'Loss Functions (supcon/relic/barlowtwins/vicreg')
+@click.option('--loss_fn', type=str, default='supcon', help= 'Loss Functions (supcon/relic/barlowtwins')
 @click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50,wideresnet')
 @click.option('--pretrained', type=str, default= 'False', help= 'Pretrained Backbone - ResNet18/50, Custom MNISTnet does not matter')
 @click.option('--projection_dim', type=int, default=128, help= "Projection Dimension of the representation vector for Resnet; Default: 128")
@@ -98,7 +96,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     teloader = DataLoader(teset, batch_size=batchsize, num_workers=8, shuffle=False, drop_last=True) #added this for pacs
     
     # load model
-    def get_generator(name):  
+    def get_generator(name):  #[TODO]maybe not gen but name?
         if name=='cnn':
             g1_net = generator.cnnGenerator(imdim=imdim, imsize=imsize).cuda()
             g2_net = generator.cnnGenerator(imdim=imdim, imsize=imsize).cuda()
@@ -118,7 +116,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         return g1_net, g2_net, g1_opt, g2_opt
 
     g1_list = []
-    ### Load Model
+    ### Load Model ([TODO]- Add Mutual Information Regularization Method for Pretrained Models)
     if data in ['mnist', 'mnist_t']:
         if backbone == 'custom':
             src_net = mnist_net.ConvNet(projection_dim).cuda()
@@ -128,12 +126,11 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         elif backbone in ['resnet18','resnet50','wideresnet']:
             encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as False - We will load our model anyway
             n_features = encoder.fc.in_features
-            output_dim = 10 
-            src_net= res_net.ConvNet(encoder, projection_dim, n_features,output_dim).cuda() 
+            output_dim = 10 #{TODO}- output
+            src_net= res_net.ConvNet(encoder, projection_dim, n_features,output_dim).cuda() #projection_dim/ n_features/output_dim=10
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
-            
         
     elif data in ['mnistvis']:
         src_net = mnist_net.ConvNetVis().cuda()
@@ -152,7 +149,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         elif backbone in ['resnet18','resnet50','wideresnet']:
             encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as False - We will load our model anyway
             n_features = encoder.fc.in_features
-            output_dim = 10 
+            output_dim = 10 #{TODO}- output - cifar10
             src_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features/output_dim=10
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
@@ -170,50 +167,29 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
             n_features = encoder.fc.in_features
             output_dim= 7
-            src_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() 
+            src_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features/output_dim=10
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
         
     cls_criterion = nn.CrossEntropyLoss()
-    
+    ##########################################
+    #[TODO]- Add ReLIC LOSS (221112)
     if loss_fn=='supcon':
         con_criterion = SupConLoss()
     elif loss_fn=='relic':
         con_criterion = ReLICLoss()
     elif loss_fn=='barlowtwins':
         con_criterion = BarlowTwinsLoss(projection_dim)
-    elif loss_fn=='vicreg':
-        con_criterion = VicReg(projection_dim, batchsize)
     ##########################################    
-    #MIRO SETUP 
-    #ONLY WHEN pretrained == 'True'
     #Create Oracle Model
-    '''
-    if pretrained =='True':
-        oracleloader = DataLoader(trset, batch_size=1, num_workers=8, \
-                    sampler=RandomSampler(trset, True, nbatch*batchsize))
-        for _, (oracle_x, oracle_y) in enumerate(oracleloader):  
-                    oracle_x, oracle_y = oracle_x.cuda(), oracle_y.cuda()
-        input_shape= oracle_x.shape  #cifar-10: [1, 3, 32, 32]
-        del oracle_x, oracle_y
-        
-        oracle_net= copy.deepcopy(src_net)
-        freeze("encoder",oracle_net)
-        oracle_net= oracle_net.cuda()
-        oracle_net.oracle= True
-        oracle_net.get_hook()
-        
-        #Mean/Variance Encoder
-        #[WIP]
-        names, shapes = get_shapes(oracle_net, input_shape) #names,shapes
-        shapes = [list(shape) for shape in shapes[:-1]] #last layer is Identity() so ignorable..?
-        
-        mean_encoders= nn.ModuleList([MeanEncoder(shape) for shape in shapes])
-        var_encoders= nn.ModuleList([VarianceEncoder(shape) for shape in shapes])
+    #oracle_net= copy.deepcopy(src_net)
+    #freeze("encoder",oracle_net)
     
-    '''
-    #MIRO SETUP END
+    #Check freeze condition
+    #print(oracle_net.encoder.layer1[0].conv1.weight.requires_grad)
+    #print(oracle_net.pro_head[0].weight.requires_grad)
+    
     ##########################################
     # Train
     global_best_acc = 0
@@ -277,49 +253,23 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
 
                 # forward
                 p1_src, z1_src = src_net(x, mode='train') #z1- torch.Size([128, 128])
-                
-                ############################
-                
-                # MIRO (0/2) - Forward Oracle
                 # oracle forward
-                '''
-                #h_oracle= oracle_net(x, mode= 'encoder')
-                _,z_oracle= oracle_net(x, mode= 'train') #train #12/05
-                
-                #THIS PART IS USED FOR the Original Version of MIRO
-                h_src= src_net(x, mode='encoder')
-                
-                
-                means= []
-                vars= []
-                reg_loss= 0.
-                for mean_encoder, var_encoder in zip_strict(mean_encoders,var_encoders):
-                    m= mean_encoder(h_src)
-                    v= var_encoder(h_src).cuda()
-                    
-                    vlb = (m.clone().detach() - h_oracle.clone().detach()).pow(2).div(v) + v.log()
-                    reg_loss += vlb.mean() / 2.    
-                #[TODO] - should we use this to update srcnet? or gnet? or both?
-                '''
-                
-                
-                ############################
+                #_, z_oracle = oracle_net(x, mode='train')
                 
                 
                 if len(g1_list)>0: # if generator exists
                     p2_src, z2_src = src_net(x2_src, mode='train') #z2- torch.Size([128, 128])
                     p3_mix, z3_mix = src_net(x3_mix, mode='train') #z3- torch.Size([128, 128])
                     #############################################
-                    #[TODO] MIRO(1/2)
+                    #[TODO] MIRO
                     zsrc = torch.cat([z1_src.unsqueeze(1), z2_src.unsqueeze(1), z3_mix.unsqueeze(1)], dim=1) #OG
                     #zsrc = torch.cat([z1_src.unsqueeze(1), z2_src.unsqueeze(1), z3_mix.unsqueeze(1), z_oracle.unsqueeze(1)], dim=1) #MIRO
                     #############################################
-                    
                     #src_cls_loss = cls_criterion(p1_src, y) + cls_criterion(p2_src, y) + cls_criterion(p3_mix, y)
                     src_cls_loss = cls_criterion(p1_src, y) + cls_criterion(p2_src, y) + cls_criterion(p3_mix, y)  #{TODO} GreatCloneDetach GCD
 
                 else:
-                    zsrc = z1_src.unsqueeze(1)   
+                    zsrc = z1_src.unsqueeze(1)   #[TODO] Tried This and worked
                     #src_cls_loss = cls_criterion(p1_src, y) #[TODO] GCD                    
                     src_cls_loss = cls_criterion(p1_src, y) #[TODO] GCD
 
@@ -328,9 +278,11 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 tgt_cls_loss = cls_criterion(p_tgt.clone().detach(), y) #[TODO] GCD
                 
                 ##[Scenario 1]
-                ##[Changed ORDER G & F (Update G then F)]
+                ######TODO[Change ORDER G & F]
+                #Scenario 1 Starts Here
+                #''' #Push to Close
                 
-                # G1-NET UPDATE
+                # update g1_net
                 if flag_fixG:
                     # fix G，training only tasknet
                     con_loss_adv = torch.tensor(0)
@@ -349,7 +301,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     elif gen == 'stn':
                         div_loss = (H_tgt-H2_tgt).abs().mean([1,2]).clamp(max=div_thresh).mean()
                         cyc_loss = torch.tensor(0).cuda()
-                    loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss + w_info*con_loss_adv #[TODO]- MIRO / reg_loss
+                    loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss + w_info*con_loss_adv
                     g1_opt.zero_grad()
                     if g2_opt is not None:
                         g2_opt.zero_grad()
@@ -358,18 +310,14 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     if g2_opt is not None:
                         g2_opt.step()
 
-                # SRC-NET UPDATE
+                # update src_net
                 
                 #############################################
-                #[TODO] Miro(2/2)
-                
+                #[TODO] Miro
+                # Try Using: z_oracle.unsqueeze(1)
                 zall = torch.cat([z_tgt.unsqueeze(1), zsrc], dim=1) #OG
-                
-                #MIRO- create zmiro
-                #zmiro = torch.cat([z_oracle.unsqueeze(1), zsrc], dim=1) #12/05
                 #zall = torch.cat([z_tgt.unsqueeze(1), z_oracle.unsqueeze(1), zsrc], dim=1) #MIRO
                 #############################################
-                
                 '''
                 #The original version caused error:
                 #https://discuss.pytorch.org/t/83241
@@ -379,12 +327,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 #con_loss = con_criterion(zall, adv=False) #[TODO] GCD
                 con_loss = con_criterion(zall.clone().detach(), adv=False)
                 
-                #MIRO- compute miro loss
-                #miro_loss= con_criterion(zmiro.clone().detach(), adv=False) #12/05
                 
-                loss = src_cls_loss + w_tgt*con_loss + w_tgt*tgt_cls_loss #og
-                #loss = src_cls_loss + w_tgt*con_loss + w_tgt*tgt_cls_loss + w_tgt*miro_loss# w_tgt default 1.0 #12/05
-                
+                loss = src_cls_loss + w_tgt*con_loss + w_tgt*tgt_cls_loss # w_tgt default 1.0
                 src_opt.zero_grad()
                 if flag_fixG:
                     loss.backward(retain_graph=True)
@@ -393,11 +337,13 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 src_opt.step()     
 
                 #Scenario 1 Ends Here
-                
+                #''' #Uncomment to Close
                 ##############################################################################
                 ##[Scenario 2]
+                #Scenario 2 Starts Here
                 # Deleted Scenario 2 Code (Please Check ./OLD/main_my_iter_beforeclean1130.py for more info.)
-                
+                ##Scenario 2 Ends Here
+                ##############################################################################
 
                 # update learning rate
                 if lr_scheduler in ['cosine']:
@@ -410,7 +356,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             src_net.eval()
             # mnist、cifar test process synthia is different
             if data in ['mnist', 'mnist_t', 'mnistvis']:
-                teacc = evaluate(src_net, teloader) 
+                teacc = evaluate(src_net, teloader) #{TODO} -Add evaluate_cifar10
             elif data in ['cifar10']:
                 teacc = evaluate(src_net, teloader)
             elif data in ['pacs']:
@@ -470,6 +416,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         from main_test_digit import evaluate_digit, evaluate_image, evaluate_pacs
         if data == 'mnist':
             pklpath = f'{svroot}/{i_tgt}-best.pkl'
+            #{TODO}- added backbone param
             evaluate_digit(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained, projection_dim= projection_dim) #Pretrained set as False, it will load our model instead.
         elif data == 'cifar10':
             pklpath = f'{svroot}/{i_tgt}-best.pkl'
@@ -480,6 +427,5 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     writer.close()
 
 if __name__=='__main__':
-    my_seed_everywhere()
     experiment()
 

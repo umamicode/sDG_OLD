@@ -21,6 +21,7 @@ import numpy as np
 
 from network import mnist_net, res_net
 from network.modules import get_resnet
+from tools.farmer import *
 import data_loader
 
 HOME = os.environ['HOME']
@@ -41,6 +42,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL']= '2'
 @click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50,wideresnet)')
 @click.option('--pretrained', type=str, default= 'False', help= 'Pretrained Backbone - ResNet18/50, Custom MNISTnet does not matter')
 @click.option('--projection_dim', type=int, default=128, help= "Projection Dimension of the representation vector for Resnet; Default: 128")
+
 
 def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr, lr_scheduler, svroot, backbone, pretrained, projection_dim):
     settings = locals().copy()
@@ -219,5 +221,6 @@ def evaluate(net, teloader):
     return acc
 
 if __name__=='__main__':
+    my_seed_everywhere()
     experiment()
 

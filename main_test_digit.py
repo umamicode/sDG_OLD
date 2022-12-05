@@ -12,6 +12,7 @@ import pandas as pd
 from network import mnist_net, res_net
 #{TODO} Added ResNet
 from network.modules import get_resnet
+from tools.farmer import *
 
 import data_loader
 from main_base import evaluate
@@ -26,6 +27,7 @@ from utils import log
 @click.option('--pretrained', type=str, default= 'False', help= 'Pretrained Backbone - ResNet18/50, Custom MNISTnet does not matter')
 @click.option('--projection_dim', type=int, default=128, help= "Projection Dimension of the representation vector for Resnet; Default: 128")
 @click.option('--data', type=str, default= 'mnist', help= 'Data to evaluate from (mnist/cifar10)')
+
 
 def main(gpu, modelpath, svpath, backbone, channels, pretrained, projection_dim, data):
     print("--Testing Model from: {svroot}".format(svroot= modelpath))
@@ -183,5 +185,6 @@ def evaluate_pacs(gpu, modelpath, svpath, backbone, pretrained,projection_dim, c
         
 
 if __name__=='__main__':
+    my_seed_everywhere()
     main()
 
