@@ -208,8 +208,8 @@ class ReLICLoss(nn.Module):
         return loss
 
 class BarlowTwinsLoss(nn.Module):
-    """Supervised Contrastive Learning with ReLIC.
-    It also supports the unsupervised contrastive loss in ReLIC"""
+    """Supervised Contrastive Learning with BarlowTwins.
+    It also supports the unsupervised contrastive loss in BarlowTwins"""
     def __init__(self, projection_dim, temperature=0.07, contrast_mode='all',
                  base_temperature=0.07, device=None):
         super(BarlowTwinsLoss, self).__init__()
@@ -289,9 +289,16 @@ class BarlowTwinsLoss(nn.Module):
         c.div_(batch_size)
         #{TODO}- 3. Loss
         
-        on_diag = torch.diagonal(c).add_(-1).pow_(2).sum()
-        off_diag = off_diagonal(c).pow_(2).sum()
-        loss = on_diag + 0.0051 * off_diag  #lambda=0.0051 suggested in barlowtwins paper
+        #[TODO] Maximize Loss
+        if adv:
+            on_diag = torch.diagonal(c).add_(-1).pow_(2).sum()
+            off_diag = off_diagonal(c).pow_(2).sum()
+            loss = on_diag + 0.0051 * off_diag
+        #Minimize Loss
+        else:
+            on_diag = torch.diagonal(c).add_(-1).pow_(2).sum()
+            off_diag = off_diagonal(c).pow_(2).sum()
+            loss = on_diag + 0.0051 * off_diag  #lambda=0.0051 suggested in barlowtwins paper
         
         #[TODO] - Problem: As Projection_Dimension increases, loss increases exponentially. Need Normalization 
         
@@ -299,8 +306,8 @@ class BarlowTwinsLoss(nn.Module):
 
 #[TODO] - add BarlowTwins Loss
 class VicReg(nn.Module):
-    """Supervised Contrastive Learning with ReLIC.
-    It also supports the unsupervised contrastive loss in ReLIC"""
+    """Supervised Contrastive Learning with VicReg.
+    It also supports the unsupervised contrastive loss in VicReg"""
     def __init__(self, projection_dim,batchsize, temperature=0.07, contrast_mode='all',
                  base_temperature=0.07, device=None):
         super(VicReg, self).__init__()
