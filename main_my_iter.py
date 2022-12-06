@@ -95,7 +95,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     print("Training With {data} data".format(data=data))
     trloader = DataLoader(trset, batch_size=batchsize, num_workers=8, \
                 sampler=RandomSampler(trset, True, nbatch*batchsize))
-    teloader = DataLoader(teset, batch_size=batchsize, num_workers=8, shuffle=False, drop_last=True) #added this for pacs
+    teloader = DataLoader(teset, batch_size=batchsize, num_workers=8, shuffle=True, drop_last=True) #todo 12/05
     
     # load model
     def get_generator(name):  
@@ -235,9 +235,10 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 flag_fixG = True
             loss_list = []
             time_list = []
-            #src_net.train()
-            src_net.eval()
+            src_net.train() 
+            #src_net.eval()
             for i, (x, y) in enumerate(trloader):  
+                
                 x, y = x.cuda(), y.cuda()
         
                 # Data Augmentation
@@ -279,7 +280,6 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 p1_src, z1_src = src_net(x, mode='train') #z1- torch.Size([128, 128])
                 
                 ############################
-                
                 # MIRO (0/2) - Forward Oracle
                 # oracle forward
                 '''
@@ -301,8 +301,6 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     reg_loss += vlb.mean() / 2.    
                 #[TODO] - should we use this to update srcnet? or gnet? or both?
                 '''
-                
-                
                 ############################
                 
                 
@@ -339,8 +337,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 else:
                     idx = np.random.randint(0, zsrc.size(1))
                     zall = torch.cat([z_tgt.unsqueeze(1), zsrc[:,idx:idx+1].detach()], dim=1)
-                    #con_loss_adv = con_criterion(zall, adv=True) #[TODO ]GCD
-                    con_loss_adv = con_criterion(zall.clone().detach(), adv=True) #Modified 11/21/2022 - All Loss uses this code
+                    con_loss_adv = con_criterion(zall, adv=True) #[TODO ]GCD #Modified 12/06/2022
+                    #con_loss_adv = con_criterion(zall.clone().detach(), adv=True) #Modified 11/21/2022 
                     
                     if gen in ['cnn', 'hr']:
                         div_loss = (x_tgt-x2_tgt).abs().mean([1,2,3]).clamp(max=div_thresh).mean() # Constraint Generator Divergence
@@ -349,16 +347,18 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     elif gen == 'stn':
                         div_loss = (H_tgt-H2_tgt).abs().mean([1,2]).clamp(max=div_thresh).mean()
                         cyc_loss = torch.tensor(0).cuda()
-                    loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss + w_info*con_loss_adv #[TODO]- MIRO / reg_loss
+                    loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss + w_info*con_loss_adv 
                     g1_opt.zero_grad()
                     if g2_opt is not None:
                         g2_opt.zero_grad()
-                    loss.backward()
+                    loss.backward(retain_graph=True) #added 12/06/2022 
                     g1_opt.step()
                     if g2_opt is not None:
                         g2_opt.step()
 
                 # SRC-NET UPDATE
+                
+                #src_net.train() #ADDED TODO 12/05
                 
                 #############################################
                 #[TODO] Miro(2/2)
@@ -387,9 +387,9 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 
                 src_opt.zero_grad()
                 if flag_fixG:
-                    loss.backward(retain_graph=True)
+                    loss.backward()
                 else:
-                    loss.backward(retain_graph=True)
+                    loss.backward()
                 src_opt.step()     
 
                 #Scenario 1 Ends Here
@@ -417,6 +417,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 teacc = evaluate(src_net, teloader)
             #Save Best Model
             if best_acc < teacc:
+                #print("Updating Task Model..")
                 best_acc = teacc
                 torch.save({'cls_net':src_net.state_dict()}, os.path.join(svroot, f'{i_tgt}-best.pkl'))
             #if global_best_acc < teacc:

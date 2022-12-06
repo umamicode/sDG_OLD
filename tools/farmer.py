@@ -12,4 +12,4 @@ def my_seed_everywhere(seed: int = 42):
     torch.cuda.manual_seed(seed) 
     torch.backends.cudnn.deterministic = True 
     torch.backends.cudnn.benchmark = False
-    tf.random.set_seed(seed) 
+    
