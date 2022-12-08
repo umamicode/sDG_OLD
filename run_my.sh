@@ -32,9 +32,9 @@ interpolation=img
 
 data=cifar10 #mnist/cifar10/pacs
 backbone=resnet18 #(custom/resnet18/resnet50/wideresnet) #mnist: custom/resnet #cifar10/pacs: resnet
-pretrained=True #Only to load right base model. my_iter process is set as pretrained=False.
+pretrained=False #Only to load right base model. my_iter process is set as pretrained=False.
 projection_dim=128 #default: (mnist: 128/ cifar-10:)
-loss_fn=barlowtwins #supcon/relic/barlowtwins/vicreg
+loss_fn=prism #supcon/barlowtwins/prism/vicreg
 
 batchsize=128 #default:128
 

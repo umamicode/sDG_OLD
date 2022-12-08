@@ -15,7 +15,7 @@ import time
 import numpy as np
 import copy
 
-from con_losses import SupConLoss, ReLICLoss, BarlowTwinsLoss, VicReg
+from con_losses import SupConLoss, PRISMLoss, BarlowTwinsLoss, VicReg
 from network import mnist_net,res_net, generator
 from network.modules import get_resnet, freeze, unfreeze, freeze_, unfreeze_, LARS
 from tools.miro_utils import *
@@ -50,7 +50,7 @@ HOME = os.environ['HOME']
 @click.option('--div_thresh', type=float, default=0.1, help='div_loss threshold')
 @click.option('--w_tgt', type=float, default=1.0, help='target domain sample update tasknet intensity control')
 @click.option('--interpolation', type=str, default='pixel', help='Interpolate between the source domain and the generated domain to get a new domain, two ways：img/pixel')
-@click.option('--loss_fn', type=str, default='supcon', help= 'Loss Functions (supcon/relic/barlowtwins/vicreg')
+@click.option('--loss_fn', type=str, default='supcon', help= 'Loss Functions (supcon/barlowtwins/prism/vicreg')
 @click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50,wideresnet')
 @click.option('--pretrained', type=str, default= 'False', help= 'Pretrained Backbone - ResNet18/50, Custom MNISTnet does not matter')
 @click.option('--projection_dim', type=int, default=128, help= "Projection Dimension of the representation vector for Resnet; Default: 128")
@@ -179,8 +179,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     
     if loss_fn=='supcon':
         con_criterion = SupConLoss()
-    elif loss_fn=='relic':
-        con_criterion = ReLICLoss()
+    elif loss_fn=='prism':
+        con_criterion = PRISMLoss(projection_dim)
     elif loss_fn=='barlowtwins':
         con_criterion = BarlowTwinsLoss(projection_dim)
     elif loss_fn=='vicreg':
@@ -236,7 +236,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             loss_list = []
             time_list = []
             src_net.train() 
-            #src_net.eval()
+            
             for i, (x, y) in enumerate(trloader):  
                 
                 x, y = x.cuda(), y.cuda()
@@ -351,14 +351,16 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     g1_opt.zero_grad()
                     if g2_opt is not None:
                         g2_opt.zero_grad()
-                    loss.backward(retain_graph=True) #added 12/06/2022 
+                    loss.backward(retain_graph=True) #added 12/06/2022 - try removing retain_graph= True
                     g1_opt.step()
                     if g2_opt is not None:
                         g2_opt.step()
+                    
+                     
 
                 # SRC-NET UPDATE
                 
-                #src_net.train() #ADDED TODO 12/05
+                #src_net.train() #ADDED TODO 12/05 #UMAMI
                 
                 #############################################
                 #[TODO] Miro(2/2)
@@ -383,15 +385,17 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 #miro_loss= con_criterion(zmiro.clone().detach(), adv=False) #12/05
                 
                 loss = src_cls_loss + w_tgt*con_loss + w_tgt*tgt_cls_loss #og
-                #loss = src_cls_loss + w_tgt*con_loss + w_tgt*tgt_cls_loss + w_tgt*miro_loss# w_tgt default 1.0 #12/05
                 
+                #loss = src_cls_loss + w_tgt*con_loss + w_tgt*tgt_cls_loss + w_tgt*miro_loss# w_tgt default 1.0 #12/05
+                #a= list(src_net.parameters())[0].clone()
                 src_opt.zero_grad()
                 if flag_fixG:
                     loss.backward()
                 else:
                     loss.backward()
                 src_opt.step()     
-
+                #b= list(src_net.parameters())[0].clone()
+                #print("PLEASE!!!", torch.equal(a.data,b.data))
                 #Scenario 1 Ends Here
                 
                 ##############################################################################
@@ -417,7 +421,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 teacc = evaluate(src_net, teloader)
             #Save Best Model
             if best_acc < teacc:
-                #print("Updating Task Model..")
+                print("Saving Task Model..")
                 best_acc = teacc
                 torch.save({'cls_net':src_net.state_dict()}, os.path.join(svroot, f'{i_tgt}-best.pkl'))
             #if global_best_acc < teacc:
