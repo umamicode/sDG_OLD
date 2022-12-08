@@ -267,6 +267,7 @@ class PRISMLoss(nn.Module):
         
         
         if adv:
+            
             contrast_count = features.shape[1] #features.shape= torch.Size([128, 2, 128])
             contrast_feature = torch.cat(torch.unbind(features, dim=1), dim=0) #unbind to create n views of (k*k) tensors and concat to create (n*k) tensor - (torch.Size([256, 128]))
             
@@ -299,13 +300,13 @@ class PRISMLoss(nn.Module):
             mask = mask * logits_mask
             # compute log_prob
             exp_logits = torch.exp(logits) * logits_mask
-            log_prob = torch.log( 1- exp_logits / (exp_logits.sum(1, keepdim=True)+1e-6) - 1e-6)
+            log_prob = torch.log(1- exp_logits / (exp_logits.sum(1, keepdim=True)+1e-6) - 1e-6)
             # compute mean of log-likelihood over positive
             mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)
             # loss
             loss = - (self.temperature / self.base_temperature) * mean_log_prob_pos
             loss = loss.view(anchor_count, batch_size).mean()
-            return loss
+            
             
             
         
@@ -339,10 +340,10 @@ class PRISMLoss(nn.Module):
             off_diag = off_diagonal(c).pow_(2).sum()
             loss = on_diag + 0.0051 * off_diag  #lambda=0.0051 suggested in barlowtwins paper
             
-            return loss
             
             
-        #return loss
+            
+        return loss
 
 
 

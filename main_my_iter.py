@@ -236,7 +236,6 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             loss_list = []
             time_list = []
             src_net.train() 
-            
             for i, (x, y) in enumerate(trloader):  
                 
                 x, y = x.cuda(), y.cuda()
@@ -351,7 +350,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     g1_opt.zero_grad()
                     if g2_opt is not None:
                         g2_opt.zero_grad()
-                    loss.backward(retain_graph=True) #added 12/06/2022 - try removing retain_graph= True
+                    #loss.backward() #added 12/06/2022 - try removing retain_graph= True
+                    loss.backward(retain_graph= True)
                     g1_opt.step()
                     if g2_opt is not None:
                         g2_opt.step()
@@ -386,7 +386,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 
                 loss = src_cls_loss + w_tgt*con_loss + w_tgt*tgt_cls_loss #og
                 
-                #loss = src_cls_loss + w_tgt*con_loss + w_tgt*tgt_cls_loss + w_tgt*miro_loss# w_tgt default 1.0 #12/05
+                
                 #a= list(src_net.parameters())[0].clone()
                 src_opt.zero_grad()
                 if flag_fixG:
