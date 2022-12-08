@@ -317,27 +317,11 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     src_cls_loss = cls_criterion(p1_src, y) #GCD
 
                 p_tgt, z_tgt = src_net(x_tgt, mode='train')
-                tgt_cls_loss = cls_criterion(p_tgt, y) #[TODO] GCD
-                #tgt_cls_loss = cls_criterion(p_tgt.clone().detach(), y) #[TODO] GCD
+                #tgt_cls_loss = cls_criterion(p_tgt, y) #[TODO] GCD
+                tgt_cls_loss = cls_criterion(p_tgt.clone().detach(), y) #[TODO] GCD
                 
-                #########UPDATE SRC NET#######
-                # SRC-NET UPDATE
-                
-                #src_net.train() #ADDED TODO 12/05 #UMAMI
-
-                zall = torch.cat([z_tgt.unsqueeze(1), zsrc], dim=1) #OG
-                
-                #con_loss = con_criterion(zall, adv=False) #[TODO] GCD
-                con_loss = con_criterion(zall, adv=False)
-                
-                loss = src_cls_loss + w_tgt*con_loss +w_tgt*tgt_cls_loss #og
-                src_opt.zero_grad()
-                if flag_fixG:
-                    loss.backward()
-                else:
-                    loss.backward(retain_graph=True)
-                #src_opt.step()   #stupid          
-                
+                ##[Scenario 1]
+                ##[Changed ORDER G & F (Update G then F)]
                 
                 # G1-NET UPDATE
                 if flag_fixG:
@@ -348,11 +332,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 else:
                     idx = np.random.randint(0, zsrc.size(1))
                     zall = torch.cat([z_tgt.unsqueeze(1), zsrc[:,idx:idx+1].detach()], dim=1)
-                    con_loss_adv = con_criterion(zall, adv=True) #[TODO]GCD 
-                    #con_loss_adv = con_criterion(zall.clone().detach(), adv=True) #Stupid 
-                    ####STUPID METHOD
-                    #tgt_cls_loss = cls_criterion(p_tgt.clone().detach(), y)
-                    
+                    con_loss_adv = con_criterion(zall, adv=True) #[TODO ]GCD #Modified 12/06/2022
+                    #con_loss_adv = con_criterion(zall.clone().detach(), adv=True) #Modified 11/21/2022 
                     
                     if gen in ['cnn', 'hr']:
                         div_loss = (x_tgt-x2_tgt).abs().mean([1,2,3]).clamp(max=div_thresh).mean() # Constraint Generator Divergence
@@ -361,26 +342,62 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     elif gen == 'stn':
                         div_loss = (H_tgt-H2_tgt).abs().mean([1,2]).clamp(max=div_thresh).mean()
                         cyc_loss = torch.tensor(0).cuda()
-                    loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss + w_info*con_loss_adv #[TODO]
-                    '''
-                    Error: RuntimeError: one of the variables needed for gradient computation
-                    has been modified by an inplace operation: [torch.cuda.FloatTensor [128, 128]], 
-                    which is output 0 of AsStridedBackward0, is at version 3; expected version 2 instead.
-                    
-                    Problem: both tgt_cls_loss and con_loss_adv is causing the problem
-                    Solution: step() at once. 
-                    '''
-                    
+                    loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss + w_info*con_loss_adv 
                     g1_opt.zero_grad()
                     if g2_opt is not None:
                         g2_opt.zero_grad()
-                    loss.backward()
-                    
+                    #loss.backward() #added 12/06/2022 - try removing retain_graph= True
+                    loss.backward(retain_graph= True)
                     g1_opt.step()
                     if g2_opt is not None:
                         g2_opt.step()
-                src_opt.step()      
-                 
+                    
+                     
+
+                # SRC-NET UPDATE
+                
+                #src_net.train() #ADDED TODO 12/05 #UMAMI
+                
+                #############################################
+                #[TODO] Miro(2/2)
+                
+                zall = torch.cat([z_tgt.unsqueeze(1), zsrc], dim=1) #OG
+                
+                #MIRO- create zmiro
+                #zmiro = torch.cat([z_oracle.unsqueeze(1), zsrc], dim=1) #12/05
+                #zall = torch.cat([z_tgt.unsqueeze(1), z_oracle.unsqueeze(1), zsrc], dim=1) #MIRO
+                #############################################
+                
+                '''
+                #The original version caused error:
+                #https://discuss.pytorch.org/t/83241
+                #Fixed by clone&detaching tensors
+                '''
+                #Modified 11/21/2022 - All loss uses this code
+                #con_loss = con_criterion(zall, adv=False) #[TODO] GCD
+                con_loss = con_criterion(zall.clone().detach(), adv=False)
+                
+                #MIRO- compute miro loss
+                #miro_loss= con_criterion(zmiro.clone().detach(), adv=False) #12/05
+                
+                loss = src_cls_loss + w_tgt*con_loss +w_tgt*tgt_cls_loss #og
+                
+                
+                #a= list(src_net.parameters())[0].clone()
+                src_opt.zero_grad()
+                if flag_fixG:
+                    loss.backward()
+                else:
+                    loss.backward()
+                src_opt.step()     
+                #b= list(src_net.parameters())[0].clone()
+                #print("PLEASE!!!", torch.equal(a.data,b.data))
+                
+                
+                
+                ##[Scenario 2]
+                # Deleted Scenario 2 Code (Please Check ./OLD/main_my_iter_beforeclean1130.py for more info.)
+                
 
                 # update learning rate
                 if lr_scheduler in ['cosine']:
@@ -400,6 +417,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 teacc = evaluate(src_net, teloader)
             #Save Best Model
             if best_acc < teacc:
+                print("Saving Task Model..")
                 best_acc = teacc
                 torch.save({'cls_net':src_net.state_dict()}, os.path.join(svroot, f'{i_tgt}-best.pkl'))
             #if global_best_acc < teacc:
