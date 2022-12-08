@@ -379,6 +379,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     g1_opt.step()
                     if g2_opt is not None:
                         g2_opt.step()
+                #Update Source Net
                 src_opt.step()      
                  
 
