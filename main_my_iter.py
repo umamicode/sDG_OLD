@@ -15,7 +15,7 @@ import time
 import numpy as np
 import copy
 
-from con_losses import SupConLoss, PRISMLoss, BarlowTwinsLoss, VicReg
+from loss_functions import SupConLoss, PRISMLoss, BarlowTwinsLoss, BarlowQuadsLoss, VicReg
 from network import mnist_net,res_net, generator
 from network.modules import get_resnet, freeze, unfreeze, freeze_, unfreeze_, LARS
 from tools.miro_utils import *
@@ -50,7 +50,7 @@ HOME = os.environ['HOME']
 @click.option('--div_thresh', type=float, default=0.1, help='div_loss threshold')
 @click.option('--w_tgt', type=float, default=1.0, help='target domain sample update tasknet intensity control')
 @click.option('--interpolation', type=str, default='pixel', help='Interpolate between the source domain and the generated domain to get a new domain, two ways：img/pixel')
-@click.option('--loss_fn', type=str, default='supcon', help= 'Loss Functions (supcon/barlowtwins/prism/vicreg')
+@click.option('--loss_fn', type=str, default='supcon', help= 'Loss Functions (supcon/barlowtwins/barlowquads/prism/vicreg')
 @click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50,wideresnet')
 @click.option('--pretrained', type=str, default= 'False', help= 'Pretrained Backbone - ResNet18/50, Custom MNISTnet does not matter')
 @click.option('--projection_dim', type=int, default=128, help= "Projection Dimension of the representation vector for Resnet; Default: 128")
@@ -183,6 +183,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         con_criterion = PRISMLoss(projection_dim)
     elif loss_fn=='barlowtwins':
         con_criterion = BarlowTwinsLoss(projection_dim)
+    elif loss_fn=='barlowquads':
+        con_criterion = BarlowQuadsLoss(projection_dim)
     elif loss_fn=='vicreg':
         con_criterion = VicReg(projection_dim, batchsize)
     ##########################################    
@@ -336,7 +338,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     loss.backward()
                 else:
                     loss.backward(retain_graph=True)
-                #src_opt.step()   #stupid          
+                          
                 
                 
                 # G1-NET UPDATE
@@ -345,6 +347,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     con_loss_adv = torch.tensor(0)
                     div_loss = torch.tensor(0)
                     cyc_loss = torch.tensor(0)
+                    #Update Source Net (RUN1)
+                    src_opt.step() 
                 else:
                     idx = np.random.randint(0, zsrc.size(1))
                     zall = torch.cat([z_tgt.unsqueeze(1), zsrc[:,idx:idx+1].detach()], dim=1)
@@ -376,11 +380,14 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                         g2_opt.zero_grad()
                     loss.backward()
                     
+                    #Update Source Net (RUN1)
+                    src_opt.step() 
                     g1_opt.step()
                     if g2_opt is not None:
                         g2_opt.step()
-                #Update Source Net
-                src_opt.step()      
+                #Update Source Net (RUN0)
+                # RUN1 shows a slightly better performance.
+                #src_opt.step()      
                  
 
                 # update learning rate
