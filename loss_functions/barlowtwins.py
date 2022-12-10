@@ -3,6 +3,7 @@ from __future__ import print_function
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import itertools
 
 class BarlowTwinsLoss(nn.Module):
     """Supervised Contrastive Learning with BarlowTwins.
@@ -88,14 +89,16 @@ class BarlowTwinsLoss(nn.Module):
             off_diag = off_diagonal(c).pow_(2).sum()
             
             loss = on_diag + 0.051 * off_diag
-            loss = -1*loss # Changed from loss = 1/loss. See BT Run1 
+            loss = -1*loss # Changed from loss = 1/loss. See BT Run1 (Better than Run0)
             
         if not adv:
             #Given 4 Representations 
             total_loss= 0.0
+            #scenarios= list(itertools.combinations(list(range(len(anchor_contrast_feature))), 2)) #for faster computation
             for p,anchor_feature in enumerate(anchor_contrast_feature):
                 for q,contrast_feature in enumerate(anchor_contrast_feature):
-                    if p != q:
+                    if p != q: #og
+                    #if (p,q) in scenarios: #for faster computation
                         anchor_feature= (anchor_feature - anchor_feature.mean(0)) / anchor_feature.std(0) #torch.Size([256, 128])
                         contrast_feature = (contrast_feature - contrast_feature.mean(0)) / contrast_feature.std(0) #torch.Size([256, 128])
                         c= torch.matmul(anchor_feature.T, contrast_feature) 
@@ -105,6 +108,7 @@ class BarlowTwinsLoss(nn.Module):
                         
                         loss = on_diag + 0.0051 * off_diag
                         total_loss += loss
-            loss = total_loss / (len(anchor_contrast_feature)**2)
+            loss = total_loss / (len(anchor_contrast_feature)**2) #og
+            #loss= total_loss / len(scenarios) #for faster computation
             
         return loss

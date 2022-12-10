@@ -174,7 +174,11 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
-        
+    
+    #TRYING FREEZE - NOPE
+    #freeze("encoder",src_net)
+    
+    
     cls_criterion = nn.CrossEntropyLoss()
     
     if loss_fn=='supcon':
@@ -193,11 +197,12 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     #Create Oracle Model
     '''
     if pretrained =='True':
+        print("Initializing Oracle Net for Mutual Information Maximization)
         oracleloader = DataLoader(trset, batch_size=1, num_workers=8, \
                     sampler=RandomSampler(trset, True, nbatch*batchsize))
         for _, (oracle_x, oracle_y) in enumerate(oracleloader):  
                     oracle_x, oracle_y = oracle_x.cuda(), oracle_y.cuda()
-        input_shape= oracle_x.shape  #cifar-10: [1, 3, 32, 32]
+        input_shape= oracle_x.shape  #cifar-10: [batch=1, 3, 32, 32]
         del oracle_x, oracle_y
         
         oracle_net= copy.deepcopy(src_net)
