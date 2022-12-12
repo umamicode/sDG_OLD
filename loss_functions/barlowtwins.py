@@ -90,7 +90,7 @@ class BarlowTwinsLoss(nn.Module):
             
             loss = on_diag + 0.051 * off_diag
             loss = -1*loss # Changed from loss = 1/loss. See BT Run1 (Better than Run0)
-            
+            #loss= (1/loss)**2
         if not adv:
             #Given 4 Representations 
             total_loss= 0.0

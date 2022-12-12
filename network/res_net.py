@@ -53,7 +53,19 @@ class ConvNet(nn.Module):
         self.cls_head_src = nn.Linear(self.n_features, self.output_dim)
         self.cls_head_tgt = nn.Linear(self.n_features, self.output_dim)
         #self.pro_head = nn.Linear(self.n_features, self.projection_dim)
+        
         #[TODO]- MLP for Contrastive Learning -Following model design of BarlowTwins Paper
+        self.pro_head = nn.Sequential(
+            nn.Linear(self.n_features, self.n_features, bias=False),  #self.n_features -> self.projection_dim
+            nn.BatchNorm1d(self.n_features),
+            nn.ReLU(),
+            nn.Linear(self.n_features, self.n_features, bias=False),  #self.n_features -> self.projection_dim
+            nn.BatchNorm1d(self.n_features),
+            nn.ReLU(),
+            nn.Linear(self.n_features, self.projection_dim, bias=False), #self.n_features,self.projection_dim -> self.projection_dim,self.projection_dim
+        )
+        '''
+        #Projection Head till 12/11/2022
         self.pro_head = nn.Sequential(
             nn.Linear(self.n_features, self.projection_dim, bias=False),  #self.n_features -> self.projection_dim
             nn.BatchNorm1d(self.projection_dim),
@@ -63,15 +75,14 @@ class ConvNet(nn.Module):
             nn.ReLU(),
             nn.Linear(self.projection_dim, self.projection_dim, bias=False), #self.n_features,self.projection_dim -> self.projection_dim,self.projection_dim
         )
-        '''
+        
         #OG pro_head
         self.pro_head = nn.Sequential(
             nn.Linear(self.n_features, self.n_features, bias=False),
             nn.ReLU(),
             nn.Linear(self.n_features, self.projection_dim, bias=False),
-            
         )'''
-        #ORACLE for MIRO
+        
         
     def get_hook(self):   
         for i,l in enumerate(list(self.encoder._modules.keys())):

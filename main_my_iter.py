@@ -391,10 +391,9 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     if g2_opt is not None:
                         g2_opt.step()
                 #Update Source Net (RUN0)
-                # RUN1 shows a slightly better performance.
+                #RUN1 shows a slightly better performance.
                 #src_opt.step()      
                  
-
                 # update learning rate
                 if lr_scheduler in ['cosine']:
                     scheduler.step()

@@ -100,7 +100,7 @@ class BarlowQuadsLoss(nn.Module):
             #off_diag = off_diagonal(c.add_(-1)).pow_(2).sum()  # appr. 1700~2000
             off_diag = off_diagonal(c).pow_(2).sum()
             loss = on_diag + 0.0051 * off_diag
-            loss = 1 / loss
+            loss = (-1)*loss
             
         #Non-ADV: Minimize Loss - Redundancy Minimization between Quads (ALL-ALL)
         else: 

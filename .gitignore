@@ -1,5 +1,8 @@
 data/
 __pycache__/
+OLD/saved-model
+OLD/saved-model2
+OLD/saved-model3
 saved-digit/
 saved-digit-ko/
 saved-model/
