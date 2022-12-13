@@ -3,7 +3,7 @@ import numpy as np
 import random
 import os
 
-def my_seed_everywhere(seed: int = 42): #42
+def my_seed_everywhere(seed: int = 42): #42 #tested with 1995
     random.seed(seed) # random
     np.random.seed(seed) # numpy
     os.environ["PYTHONHASHSEED"] = str(seed) # os

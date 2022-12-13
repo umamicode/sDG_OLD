@@ -89,8 +89,8 @@ class BarlowTwinsLoss(nn.Module):
             off_diag = off_diagonal(c).pow_(2).sum()
             
             loss = on_diag + 0.051 * off_diag
-            loss = -1*loss # Changed from loss = 1/loss. See BT Run1 (Better than Run0)
-            #loss= (1/loss)**2
+            loss = -1*loss # Changed from loss = 1/loss. See BT Run1 (Better than Run0)#og
+            #loss= (1/loss)**2 #run0
         if not adv:
             #Given 4 Representations 
             total_loss= 0.0

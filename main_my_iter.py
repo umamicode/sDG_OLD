@@ -16,8 +16,8 @@ import numpy as np
 import copy
 
 from loss_functions import SupConLoss, PRISMLoss, BarlowTwinsLoss, BarlowQuadsLoss, VicReg
-from network import mnist_net,res_net, generator
-from network.modules import get_resnet, freeze, unfreeze, freeze_, unfreeze_, LARS
+from network import mnist_net,res_net,generator
+from network.modules import get_resnet, get_generator, freeze, unfreeze, freeze_, unfreeze_, LARS
 from tools.miro_utils import *
 from tools.farmer import *
 import data_loader
@@ -62,10 +62,10 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     settings = locals().copy()
     print(settings)
     print("--Loss Function: {loss_fn}".format(loss_fn= loss_fn))
-    print("--Using Base Model from: {ckpt}".format(ckpt=ckpt))
-    print("--Trained Model savepath: {svroot}".format(svroot=svroot))
+    print("--Pulling Base Model from: {ckpt}".format(ckpt=ckpt))
+    print("--Pushing Trained Model to: {svroot}".format(svroot=svroot))
     
-    # Global Settings
+    
     zdim = 10
     os.environ['CUDA_VISIBLE_DEVICES'] = gpu
     g1root = os.path.join(svroot, 'g1')
@@ -90,35 +90,16 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     elif data in ['pacs']:
         trset = data_loader.load_pacs(split='train')
         teset = data_loader.load_pacs(split='test')
-        imsize = [32, 32] #image size is (224,224)
+        imsize = [32, 32] 
 
-    print("Training With {data} data".format(data=data))
+    print("--Training With {data} data".format(data=data))
     trloader = DataLoader(trset, batch_size=batchsize, num_workers=8, \
                 sampler=RandomSampler(trset, True, nbatch*batchsize))
-    teloader = DataLoader(teset, batch_size=batchsize, num_workers=8, shuffle=True, drop_last=True) #todo 12/05
+    teloader = DataLoader(teset, batch_size=batchsize, num_workers=8, shuffle=True, drop_last=True) 
     
-    # load model
-    def get_generator(name):  
-        if name=='cnn':
-            g1_net = generator.cnnGenerator(imdim=imdim, imsize=imsize).cuda()
-            g2_net = generator.cnnGenerator(imdim=imdim, imsize=imsize).cuda()
-            g1_opt = optim.Adam(g1_net.parameters(), lr=lr)
-            g2_opt = optim.Adam(g2_net.parameters(), lr=lr)
-        elif gen=='hr':
-            1/0
-            g1_net = hrnet.HRGenerator(zdim=zdim).cuda()
-            g2_net = hrnet.HRGenerator(zdim=zdim).cuda()
-            g1_opt = optim.Adam(g1_net.parameters(), lr=lr)
-            g2_opt = optim.Adam(g2_net.parameters(), lr=lr)
-        elif gen=='stn':
-            g1_net = generator.stnGenerator(zdim=zdim, mode=gen_mode).cuda()
-            g2_net = None
-            g1_opt = optim.Adam(g1_net.parameters(), lr=lr/2)
-            g2_opt = None
-        return g1_net, g2_net, g1_opt, g2_opt
-
+    # Load model
     g1_list = []
-    ### Load Model
+    ### Load Task Model
     if data in ['mnist', 'mnist_t']:
         if backbone == 'custom':
             src_net = mnist_net.ConvNet(projection_dim).cuda()
@@ -176,8 +157,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
     
     #TRYING FREEZE - NOPE
-    #freeze("encoder",src_net)
-    
+    #freeze("encoder",src_net) #Perfomance Drops like summer rain
     
     cls_criterion = nn.CrossEntropyLoss()
     
@@ -195,9 +175,11 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     #MIRO SETUP 
     #ONLY WHEN pretrained == 'True'
     #Create Oracle Model
+    #oracle
+    print(pretrained)
     '''
     if pretrained =='True':
-        print("Initializing Oracle Net for Mutual Information Maximization)
+        print("--Initializing Oracle Net for Mutual Information Maximization")
         oracleloader = DataLoader(trset, batch_size=1, num_workers=8, \
                     sampler=RandomSampler(trset, True, nbatch*batchsize))
         for _, (oracle_x, oracle_y) in enumerate(oracleloader):  
@@ -218,8 +200,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         
         mean_encoders= nn.ModuleList([MeanEncoder(shape) for shape in shapes])
         var_encoders= nn.ModuleList([VarianceEncoder(shape) for shape in shapes])
-    
     '''
+    
     #MIRO SETUP END
     ##########################################
     # Train
@@ -230,13 +212,12 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         ####################### Learning ith target generator
         if lr_scheduler == 'cosine':
             scheduler = optim.lr_scheduler.CosineAnnealingLR(src_opt, tgt_epochs*len(trloader))
-        g1_net, g2_net, g1_opt, g2_opt = get_generator(gen)
+        g1_net, g2_net, g1_opt, g2_opt = get_generator(gen, imdim=imdim, imsize= imsize, lr= lr) #get_generator(gen)
         best_acc = 0
         for epoch in range(tgt_epochs):
             t1 = time.time()
             
-            # if flag_fixG = False, locking G
-            #      flag_fixG = True, renew G
+            # if flag_fixG = False, locking G / flag_fixG = True, renew G
             flag_fixG = False
             if (tgt_epochs_fixg is not None) and (epoch >= tgt_epochs_fixg):
                 flag_fixG = True
@@ -252,7 +233,6 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 # Data Augmentation
                 if len(g1_list)>0: # if generator exists (not zero in g1_list)
                     idx = np.random.randint(0, len(g1_list))
-                    #rand = torch.randn(len(x), zdim).cuda()
                     if gen in ['hr', 'cnn']:
                         with torch.no_grad():
                             x2_src = g1_list[idx](x, rand=True)  #generated image
@@ -287,7 +267,14 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 
                 ############################
                 # MIRO (0/2) - Forward Oracle (Closed ATM)
-                # oracle forward 
+                # oracle forward
+                '''
+                if pretrained=='True': #oracle
+                    print("here")
+                    h_oracle= oracle_net(x,mode='encoder')#oracle
+                    h_source= src_net(x,mode='encoder')#oracle
+                '''
+                
                 '''
                 #h_oracle= oracle_net(x, mode= 'encoder')
                 _,z_oracle= oracle_net(x, mode= 'train') #train #12/05
@@ -337,7 +324,14 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 #con_loss = con_criterion(zall, adv=False) #[TODO] GCD
                 con_loss = con_criterion(zall, adv=False)
                 
+                #oracle
+                #oracle_loss = con_criterion(torch.cat([h_oracle.unsqueeze(1), h_source.unsqueeze(1)], dim=1), adv=False) #oracle
+                
+                #final loss
                 loss = src_cls_loss + w_tgt*con_loss +w_tgt*tgt_cls_loss #og
+                #if pretrained=='True': #oracle
+                #    loss += (w_tgt* oracle_loss) #oracle
+                
                 src_opt.zero_grad()
                 if flag_fixG:
                     loss.backward()
@@ -370,7 +364,10 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     elif gen == 'stn':
                         div_loss = (H_tgt-H2_tgt).abs().mean([1,2]).clamp(max=div_thresh).mean()
                         cyc_loss = torch.tensor(0).cuda()
+                    #w_cls= 1.0, w_div= 2.0, w_cyc=20, w_info= 0.1
                     loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss + w_info*con_loss_adv #[TODO]
+                    #loss = w_cls*tgt_cls_loss -(w_div+w_info)*div_loss + w_cyc*cyc_loss #try removing adversarial loss
+                    
                     '''
                     Error: RuntimeError: one of the variables needed for gradient computation
                     has been modified by an inplace operation: [torch.cuda.FloatTensor [128, 128]], 
