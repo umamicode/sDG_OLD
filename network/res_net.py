@@ -119,7 +119,8 @@ class ConvNet(nn.Module):
             p = self.cls_head_src(out4)
             return p, out4
         elif mode == 'encoder':
-            return out4
+            z = F.normalize(out4) #added morning 12/14
+            return z
         #elif mode == 'target':
         #    p = self.cls_head_tgt(out4)
         #    z = self.pro_head(out4)

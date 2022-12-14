@@ -28,22 +28,23 @@ tgt_epochs=30 #30
 
 gen=cnn
 interpolation=img
-
+oracle=True
 
 data=cifar10 #mnist/cifar10/pacs
-backbone=resnet18 #(custom/resnet18/resnet50/wideresnet) #mnist: custom/resnet #cifar10/pacs: resnet
+backbone=wideresnet #(custom/resnet18/resnet50/wideresnet) #mnist: custom/resnet #cifar10/pacs: resnet
 pretrained=True #Only to load right base model. my_iter process is set as pretrained=False.
 projection_dim=128 #default: (mnist: 128/ cifar-10:)
 loss_fn=barlowtwins #supcon/barlowtwins/barlowquads/prism/vicreg
 
+
 batchsize=128 #default:128
 
 # Model Load/Save Path
-svroot=saved-model/oracle/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_run${2}
+svroot=saved-model/oracle2/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_run${2}
 baseroot=saved-model/${data}/base_${backbone}_${pretrained}_${projection_dim}_run0/best.pkl
 
 # step1
-python3 main_my_iter.py --gpu $1 --data ${data} --gen $gen --backbone ${backbone} --loss_fn ${loss_fn} --projection_dim ${projection_dim} --interpolation $interpolation --n_tgt ${n_tgt} --tgt_epochs ${tgt_epochs} --tgt_epochs_fixg 15 --nbatch 100 --batchsize ${batchsize} --lr 1e-4 --w_cls $w_cls --w_cyc $w_cyc --w_info $w_info --w_div $w_div --div_thresh ${div_thresh} --w_tgt $w_tgt --ckpt ${baseroot} --svroot ${svroot} --pretrained ${pretrained}
+python3 main_my_iter.py --gpu $1 --data ${data} --gen $gen --backbone ${backbone} --loss_fn ${loss_fn} --projection_dim ${projection_dim} --interpolation $interpolation --n_tgt ${n_tgt} --tgt_epochs ${tgt_epochs} --tgt_epochs_fixg 15 --nbatch 100 --batchsize ${batchsize} --lr 1e-4 --w_cls $w_cls --w_cyc $w_cyc --w_info $w_info --w_div $w_div --div_thresh ${div_thresh} --w_tgt $w_tgt --ckpt ${baseroot} --svroot ${svroot} --pretrained ${pretrained} --oracle ${oracle}
 python3 main_test_digit.py --gpu $1 --modelpath ${svroot}/${max_tgt}-best.pkl --svpath ${svroot}/test.log --backbone ${backbone} --projection_dim ${projection_dim} --data ${data}
 
 #done

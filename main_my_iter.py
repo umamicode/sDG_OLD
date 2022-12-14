@@ -54,11 +54,12 @@ HOME = os.environ['HOME']
 @click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50,wideresnet')
 @click.option('--pretrained', type=str, default= 'False', help= 'Pretrained Backbone - ResNet18/50, Custom MNISTnet does not matter')
 @click.option('--projection_dim', type=int, default=128, help= "Projection Dimension of the representation vector for Resnet; Default: 128")
+@click.option('--oracle', type=str, default='False', help= "Oracle Model for large pretrained models")
 
 
 def experiment(gpu, data, ntr, gen, gen_mode, \
         n_tgt, tgt_epochs, tgt_epochs_fixg, nbatch, batchsize, lr, lr_scheduler, svroot, ckpt, \
-        w_cls, w_info, w_cyc, w_div, div_thresh, w_tgt, interpolation, loss_fn, backbone, pretrained, projection_dim):
+        w_cls, w_info, w_cyc, w_div, div_thresh, w_tgt, interpolation, loss_fn, backbone, pretrained, projection_dim, oracle):
     settings = locals().copy()
     print(settings)
     print("--Loss Function: {loss_fn}".format(loss_fn= loss_fn))
@@ -176,9 +177,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     #ONLY WHEN pretrained == 'True'
     #Create Oracle Model
     #oracle
-    print(pretrained)
-    '''
-    if pretrained =='True':
+    
+    if (pretrained =='True') and (oracle == 'True'):
         print("--Initializing Oracle Net for Mutual Information Maximization")
         oracleloader = DataLoader(trset, batch_size=1, num_workers=8, \
                     sampler=RandomSampler(trset, True, nbatch*batchsize))
@@ -200,7 +200,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         
         mean_encoders= nn.ModuleList([MeanEncoder(shape) for shape in shapes])
         var_encoders= nn.ModuleList([VarianceEncoder(shape) for shape in shapes])
-    '''
+    
     
     #MIRO SETUP END
     ##########################################
@@ -268,12 +268,11 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 ############################
                 # MIRO (0/2) - Forward Oracle (Closed ATM)
                 # oracle forward
-                '''
-                if pretrained=='True': #oracle
-                    print("here")
+                
+                if (pretrained =='True') and (oracle == 'True'): #oracle
                     h_oracle= oracle_net(x,mode='encoder')#oracle
                     h_source= src_net(x,mode='encoder')#oracle
-                '''
+                
                 
                 '''
                 #h_oracle= oracle_net(x, mode= 'encoder')
@@ -325,12 +324,17 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 con_loss = con_criterion(zall, adv=False)
                 
                 #oracle
-                #oracle_loss = con_criterion(torch.cat([h_oracle.unsqueeze(1), h_source.unsqueeze(1)], dim=1), adv=False) #oracle
-                
+                if (pretrained =='True') and (oracle =='True'):
+                    oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_source.unsqueeze(1)], dim=1)
+                    oracle_loss = con_criterion(oracle_tensors, adv=False, oracle= True) #oracle
+                    
+                    #print(h_oracle.shape) #torch.Size([128, 2048])
+                    
                 #final loss
                 loss = src_cls_loss + w_tgt*con_loss +w_tgt*tgt_cls_loss #og
-                #if pretrained=='True': #oracle
-                #    loss += (w_tgt* oracle_loss) #oracle
+                
+                if (pretrained =='True') and (oracle == 'True'): #oracle
+                    loss += (w_tgt* oracle_loss) #oracle #w_tgt=1.0
                 
                 src_opt.zero_grad()
                 if flag_fixG:

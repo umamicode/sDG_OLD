@@ -18,7 +18,7 @@ class BarlowTwinsLoss(nn.Module):
         self.device=device
         #self.bn = nn.BatchNorm1d(sizes[-1], affine=False)
 
-    def forward(self, features, labels=None, mask=None, adv=False):
+    def forward(self, features, labels=None, mask=None, adv=False, oracle = False):
         """Compute loss for model. If both `labels` and `mask` are None,
         it degenerates to self-supervised BarlowTwins loss:
         https://arxiv.org/pdf/2103.03230v3.pdf
@@ -80,6 +80,7 @@ class BarlowTwinsLoss(nn.Module):
             #Only A Pair of Representations is given
             anchor_feature= anchor_contrast_feature[0]
             contrast_feature= anchor_contrast_feature[1]
+            # normalize repr. along the batch dimension
             anchor_feature= (anchor_feature - anchor_feature.mean(0)) / anchor_feature.std(0) #torch.Size([256, 128])
             contrast_feature = (contrast_feature - contrast_feature.mean(0)) / contrast_feature.std(0) #torch.Size([256, 128])
  
@@ -99,8 +100,11 @@ class BarlowTwinsLoss(nn.Module):
                 for q,contrast_feature in enumerate(anchor_contrast_feature):
                     if p != q: #og
                     #if (p,q) in scenarios: #for faster computation
-                        anchor_feature= (anchor_feature - anchor_feature.mean(0)) / anchor_feature.std(0) #torch.Size([256, 128])
-                        contrast_feature = (contrast_feature - contrast_feature.mean(0)) / contrast_feature.std(0) #torch.Size([256, 128])
+                        # normalize repr. along the batch dimension
+                        if not oracle:
+                            anchor_feature= (anchor_feature - anchor_feature.mean(0)) / anchor_feature.std(0) #torch.Size([256, 128])
+                            contrast_feature = (contrast_feature - contrast_feature.mean(0)) / contrast_feature.std(0) #torch.Size([256, 128])
+                        
                         c= torch.matmul(anchor_feature.T, contrast_feature) 
                         c.div_(batch_size)
                         on_diag = torch.diagonal(c).add_(-1).pow_(2).sum() # appr. 2~3
