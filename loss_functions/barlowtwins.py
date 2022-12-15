@@ -18,7 +18,7 @@ class BarlowTwinsLoss(nn.Module):
         self.device=device
         #self.bn = nn.BatchNorm1d(sizes[-1], affine=False)
 
-    def forward(self, features, labels=None, mask=None, adv=False, oracle = False):
+    def forward(self, features, labels=None, mask=None, adv=False, standardize = True):
         """Compute loss for model. If both `labels` and `mask` are None,
         it degenerates to self-supervised BarlowTwins loss:
         https://arxiv.org/pdf/2103.03230v3.pdf
@@ -101,9 +101,12 @@ class BarlowTwinsLoss(nn.Module):
                     if p != q: #og
                     #if (p,q) in scenarios: #for faster computation
                         # normalize repr. along the batch dimension
-                        if not oracle:
-                            anchor_feature= (anchor_feature - anchor_feature.mean(0)) / anchor_feature.std(0) #torch.Size([256, 128])
-                            contrast_feature = (contrast_feature - contrast_feature.mean(0)) / contrast_feature.std(0) #torch.Size([256, 128])
+                        if standardize:
+                            #standardization (added 1e-6 so that nan does not appear)
+                            anchor_feature= (anchor_feature - anchor_feature.mean(0)) / (anchor_feature.std(0)+ 1e-6) #torch.Size([256, 128])
+                            contrast_feature = (contrast_feature - contrast_feature.mean(0)) / (contrast_feature.std(0) +1e-6)  #torch
+                        if not standardize:
+                            pass
                         
                         c= torch.matmul(anchor_feature.T, contrast_feature) 
                         c.div_(batch_size)

@@ -325,9 +325,11 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 
                 #oracle
                 if (pretrained =='True') and (oracle =='True'):
+                    #oracle_tensors are not normalized (dim=1).
                     oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_source.unsqueeze(1)], dim=1)
-                    oracle_loss = con_criterion(oracle_tensors, adv=False, oracle= True) #oracle
                     
+                    oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True) #oracle run0 normalize/ run1 nonorm run2 standard=True
+                    #standardize true showed better results
                     #print(h_oracle.shape) #torch.Size([128, 2048])
                     
                 #final loss

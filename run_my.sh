@@ -28,19 +28,19 @@ tgt_epochs=30 #30
 
 gen=cnn
 interpolation=img
-oracle=True
+oracle=False
 
 data=cifar10 #mnist/cifar10/pacs
-backbone=wideresnet #(custom/resnet18/resnet50/wideresnet) #mnist: custom/resnet #cifar10/pacs: resnet
-pretrained=True #Only to load right base model. my_iter process is set as pretrained=False.
+backbone=resnet18 #(custom/resnet18/resnet50/wideresnet) #mnist: custom/resnet #cifar10/pacs: resnet
+pretrained=False #Only to load right base model. my_iter process is set as pretrained=False.
 projection_dim=128 #default: (mnist: 128/ cifar-10:)
-loss_fn=barlowtwins #supcon/barlowtwins/barlowquads/prism/vicreg
+loss_fn=supcon #supcon/barlowtwins/barlowquads/prism/vicreg
 
 
 batchsize=128 #default:128
 
 # Model Load/Save Path
-svroot=saved-model/oracle2/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_run${2}
+svroot=saved-model/final/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_run${2}
 baseroot=saved-model/${data}/base_${backbone}_${pretrained}_${projection_dim}_run0/best.pkl
 
 # step1

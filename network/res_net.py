@@ -113,19 +113,15 @@ class ConvNet(nn.Module):
         elif mode == 'train':
             p = self.cls_head_src(out4)
             z = self.pro_head(out4)
-            z = F.normalize(z)
+            z = F.normalize(z) #dim=1 normalized
             return p,z
         elif mode == 'p_f':
             p = self.cls_head_src(out4)
             return p, out4
         elif mode == 'encoder':
-            z = F.normalize(out4) #added morning 12/14
-            return z
-        #elif mode == 'target':
-        #    p = self.cls_head_tgt(out4)
-        #    z = self.pro_head(out4)
-        #    z = F.normalize(z)
-        #    return p,z
+            out4 = F.normalize(out4) #this does not effect accuracy
+            return out4
+        
     
 class ConvNetVis(nn.Module):
     ''' 
