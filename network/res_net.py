@@ -64,24 +64,6 @@ class ConvNet(nn.Module):
             nn.ReLU(),
             nn.Linear(self.n_features, self.projection_dim, bias=False), #self.n_features,self.projection_dim -> self.projection_dim,self.projection_dim
         )
-        '''
-        #Projection Head till 12/11/2022
-        self.pro_head = nn.Sequential(
-            nn.Linear(self.n_features, self.projection_dim, bias=False),  #self.n_features -> self.projection_dim
-            nn.BatchNorm1d(self.projection_dim),
-            nn.ReLU(),
-            nn.Linear(self.projection_dim, self.projection_dim, bias=False),  #self.n_features -> self.projection_dim
-            nn.BatchNorm1d(self.projection_dim),
-            nn.ReLU(),
-            nn.Linear(self.projection_dim, self.projection_dim, bias=False), #self.n_features,self.projection_dim -> self.projection_dim,self.projection_dim
-        )
-        
-        #OG pro_head
-        self.pro_head = nn.Sequential(
-            nn.Linear(self.n_features, self.n_features, bias=False),
-            nn.ReLU(),
-            nn.Linear(self.n_features, self.projection_dim, bias=False),
-        )'''
         
         
     def get_hook(self):   

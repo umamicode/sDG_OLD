@@ -3,11 +3,11 @@
 # $2 runid
 
 # base method
-data=mnist #(mnist/cifar10/pacs)
+data=cifar10 #(mnist/cifar10/pacs)
 backbone=resnet18 #(custom/resnet18/resnet50/wideresnet) #mnist-custom/resnet #cifar10/pacs- resnet
-pretrained=False
-projection_dim=128 #(custom default:128/ resnet default: 128)
-epochs=200 #default:50
+pretrained=True
+projection_dim=256 #(custom default:128/ resnet default: 128)
+epochs=100 #default:50
 
 # Base Model Path
 svroot=saved-model/${data}/base_${backbone}_${pretrained}_${projection_dim}_run${2} 

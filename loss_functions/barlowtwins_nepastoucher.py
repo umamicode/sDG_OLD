@@ -8,7 +8,7 @@ import itertools
 class BarlowTwinsLoss(nn.Module):
     """Supervised Contrastive Learning with BarlowTwins.
     It also supports the unsupervised contrastive loss in BarlowTwins"""
-    def __init__(self, projection_dim, lmda=0.0051, temperature=0.07, contrast_mode='all',
+    def __init__(self, projection_dim, temperature=0.07, contrast_mode='all',
                  base_temperature=0.07, device=None):
         super(BarlowTwinsLoss, self).__init__()
         self.temperature = temperature
@@ -17,7 +17,6 @@ class BarlowTwinsLoss(nn.Module):
         self.projection_dim= projection_dim #[TODO] - added to normalize loss
         self.penalty= projection_dim/128 #normalized loss
         self.device=device
-        self.lmda= lmda
         #self.bn = nn.BatchNorm1d(sizes[-1], affine=False)
 
     def forward(self, features, labels=None, mask=None, adv=False, standardize = True):
@@ -89,14 +88,10 @@ class BarlowTwinsLoss(nn.Module):
             if self.projection_dim != 128:
                 on_diag /= (self.penalty)
                 off_diag /= (self.penalty * (self.penalty -1))
-            #OG ADV LOSS (NE PAS TOUCHER)
-            loss = on_diag + self.lmda * off_diag #satur/run0
-            #loss = -1*loss
+            loss = on_diag + 0.051 * off_diag #satur/run0
+            loss = -1*loss
             
-            #simple ADV LOSS (default:lmda=0.1)
-            #loss= on_diag / (off_diag * self.lmda)
             
-            #Candidates
             #loss = 1/ (loss + 1e-6) #loss_exp
             #loss = 0.1*on_diag + torch.exp(1 / (0.051* off_diag + 1e-6))
             #loss = on_diag / (loss +1e-6) #satur/run2

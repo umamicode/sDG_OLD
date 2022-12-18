@@ -39,7 +39,7 @@ HOME = os.environ['HOME']
 @click.option('--tgt_epochs_fixg', type=int, default=None, help='When the epoch is greater than this value, G fix is ​​removed')
 @click.option('--nbatch', type=int, default=None, help='How many batches are included in each epoch')
 @click.option('--batchsize', type=int, default=256)
-@click.option('--lr', type=float, default=1e-3)
+@click.option('--lr', type=float, default=1e-3, help='Learning Rate: Default 1e-4 in Our Experiment')
 @click.option('--lr_scheduler', type=str, default='none', help='Whether to choose a learning rate decay strategy')
 @click.option('--svroot', type=str, default='./saved')
 @click.option('--ckpt', type=str, default='./saved/best.pkl')
@@ -47,6 +47,8 @@ HOME = os.environ['HOME']
 @click.option('--w_info', type=float, default=1.0, help='infomin item weights')
 @click.option('--w_cyc', type=float, default=10.0, help='cycleloss item weight')
 @click.option('--w_div', type=float, default=1.0, help='Polymorphism loss weight')
+@click.option('--w_oracle', type=float, default=1.0, help='Oracle loss Weight')
+@click.option('--lmda', type=float, default=0.0051, help='Lambda for Adversarial BT')
 @click.option('--div_thresh', type=float, default=0.1, help='div_loss threshold')
 @click.option('--w_tgt', type=float, default=1.0, help='target domain sample update tasknet intensity control')
 @click.option('--interpolation', type=str, default='pixel', help='Interpolate between the source domain and the generated domain to get a new domain, two ways：img/pixel')
@@ -59,7 +61,7 @@ HOME = os.environ['HOME']
 
 def experiment(gpu, data, ntr, gen, gen_mode, \
         n_tgt, tgt_epochs, tgt_epochs_fixg, nbatch, batchsize, lr, lr_scheduler, svroot, ckpt, \
-        w_cls, w_info, w_cyc, w_div, div_thresh, w_tgt, interpolation, loss_fn, backbone, pretrained, projection_dim, oracle):
+        w_cls, w_info, w_cyc, w_div, w_oracle, lmda, div_thresh, w_tgt, interpolation, loss_fn, backbone, pretrained, projection_dim, oracle):
     settings = locals().copy()
     print(settings)
     print("--Loss Function: {loss_fn}".format(loss_fn= loss_fn))
@@ -139,12 +141,10 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
-            
     elif data in ['pacs']:
         if backbone == 'custom':
             #NOT RECOMMENDED: PACS experiment was designed for Resnet Models
             raise ValueError('WORK IN PROGRESS: PLEASE USE Resnet-18/50 For PACS')
-            # [Incomplete Codes]
             src_net = mnist_net.ConvNet(projection_dim).cuda()
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
@@ -158,7 +158,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
     
     #TRYING FREEZE - NOPE
-    #freeze("encoder",src_net) #Perfomance Drops like summer rain
+    #freeze("encoder",src_net) #Perfomance Drops
     
     cls_criterion = nn.CrossEntropyLoss()
     
@@ -167,17 +167,13 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     elif loss_fn=='prism':
         con_criterion = PRISMLoss(projection_dim)
     elif loss_fn=='barlowtwins':
-        con_criterion = BarlowTwinsLoss(projection_dim)
+        con_criterion = BarlowTwinsLoss(projection_dim, lmda= lmda)
     elif loss_fn=='barlowquads':
         con_criterion = BarlowQuadsLoss(projection_dim)
     elif loss_fn=='vicreg':
         con_criterion = VicReg(projection_dim, batchsize)
     ##########################################    
-    #MIRO SETUP 
-    #ONLY WHEN pretrained == 'True'
-    #Create Oracle Model
-    #oracle
-    
+    #Create Oracle Model    
     if (pretrained =='True') and (oracle == 'True'):
         print("--Initializing Oracle Net for Mutual Information Maximization")
         oracleloader = DataLoader(trset, batch_size=1, num_workers=8, \
@@ -209,7 +205,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     for i_tgt in range(n_tgt):
         print(f'target domain {i_tgt}/{n_tgt}')
 
-        ####################### Learning ith target generator
+        #ith target generator train sequence
         if lr_scheduler == 'cosine':
             scheduler = optim.lr_scheduler.CosineAnnealingLR(src_opt, tgt_epochs*len(trloader))
         g1_net, g2_net, g1_opt, g2_opt = get_generator(gen, imdim=imdim, imsize= imsize, lr= lr) #get_generator(gen)
@@ -259,8 +255,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 elif gen == 'stn':
                     x_tgt, H_tgt = g1_net(x, rand=True, return_H=True)
                     x2_tgt, H2_tgt = g1_net(x, rand=True, return_H=True)
-                
-                
+
 
                 # forward
                 p1_src, z1_src = src_net(x, mode='train') #z1- torch.Size([128, 128])
@@ -269,9 +264,15 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 # MIRO (0/2) - Forward Oracle (Closed ATM)
                 # oracle forward
                 
-                if (pretrained =='True') and (oracle == 'True'): #oracle
+                if (pretrained == 'True') and (oracle == 'True'): #oracle
                     h_oracle= oracle_net(x,mode='encoder')#oracle
                     h_source= src_net(x,mode='encoder')#oracle
+                    
+                    h_oracle_tgt= oracle_net(x_tgt, mode= 'encoder')
+                    h_oracle_tgt2= oracle_net(x2_tgt, mode= 'encoder')
+                    
+                    h_source_tgt= src_net(x_tgt, mode= 'encoder')
+                    h_oracle_tgt2= src_net(x2_tgt, mode= 'encoder')
                 
                 
                 '''
@@ -311,32 +312,25 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
 
                 p_tgt, z_tgt = src_net(x_tgt, mode='train')
                 tgt_cls_loss = cls_criterion(p_tgt, y) #[TODO] GCD
-                #tgt_cls_loss = cls_criterion(p_tgt.clone().detach(), y) #[TODO] GCD
+                                
                 
-                #########UPDATE SRC NET#######
                 # SRC-NET UPDATE
-                
-                #src_net.train() #ADDED TODO 12/05 #UMAMI
-
                 zall = torch.cat([z_tgt.unsqueeze(1), zsrc], dim=1) #OG
-                
-                #con_loss = con_criterion(zall, adv=False) #[TODO] GCD
                 con_loss = con_criterion(zall, adv=False)
                 
                 #oracle
                 if (pretrained =='True') and (oracle =='True'):
                     #oracle_tensors are not normalized (dim=1).
                     oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_source.unsqueeze(1)], dim=1)
+                    oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True) #standardize true showed better results
                     
-                    oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True) #oracle run0 normalize/ run1 nonorm run2 standard=True
-                    #standardize true showed better results
-                    #print(h_oracle.shape) #torch.Size([128, 2048])
                     
-                #final loss
-                loss = src_cls_loss + w_tgt*con_loss +w_tgt*tgt_cls_loss #og
-                
+                    
+                #Source Task Model Loss
+                loss = src_cls_loss + w_tgt*con_loss + w_tgt*tgt_cls_loss #og
+                #Oracle Loss 
                 if (pretrained =='True') and (oracle == 'True'): #oracle
-                    loss += (w_tgt* oracle_loss) #oracle #w_tgt=1.0
+                    loss += (w_oracle* oracle_loss) #w_oracle=1.0
                 
                 src_opt.zero_grad()
                 if flag_fixG:
@@ -358,10 +352,10 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     idx = np.random.randint(0, zsrc.size(1))
                     zall = torch.cat([z_tgt.unsqueeze(1), zsrc[:,idx:idx+1].detach()], dim=1)
                     con_loss_adv = con_criterion(zall, adv=True) #[TODO]GCD 
-                    #con_loss_adv = con_criterion(zall.clone().detach(), adv=True) #Stupid 
-                    ####STUPID METHOD
-                    #tgt_cls_loss = cls_criterion(p_tgt.clone().detach(), y)
                     
+                    if (pretrained =='True') and (oracle =='True'):
+                        oracle_tensors= torch.cat([h_oracle_tgt.unsqueeze(1), h_source_tgt.unsqueeze(1)], dim=1)
+                        oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True)
                     
                     if gen in ['cnn', 'hr']:
                         div_loss = (x_tgt-x2_tgt).abs().mean([1,2,3]).clamp(max=div_thresh).mean() # Constraint Generator Divergence
@@ -370,17 +364,18 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     elif gen == 'stn':
                         div_loss = (H_tgt-H2_tgt).abs().mean([1,2]).clamp(max=div_thresh).mean()
                         cyc_loss = torch.tensor(0).cuda()
+                        
                     #w_cls= 1.0, w_div= 2.0, w_cyc=20, w_info= 0.1
-                    loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss + w_info*con_loss_adv #[TODO]
-                    #loss = w_cls*tgt_cls_loss -(w_div+w_info)*div_loss + w_cyc*cyc_loss #try removing adversarial loss
+                    loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss - w_info*con_loss_adv 
+                    if (pretrained =='True') and (oracle == 'True'):
+                        loss += (w_info* oracle_loss)
                     
                     '''
-                    Error: RuntimeError: one of the variables needed for gradient computation
+                    - Error: RuntimeError: one of the variables needed for gradient computation
                     has been modified by an inplace operation: [torch.cuda.FloatTensor [128, 128]], 
                     which is output 0 of AsStridedBackward0, is at version 3; expected version 2 instead.
-                    
-                    Problem: both tgt_cls_loss and con_loss_adv is causing the problem
-                    Solution: step() at once. 
+                    - Problem: both tgt_cls_loss and con_loss_adv is causing the problem
+                    - Solution: step() at once. 
                     '''
                     
                     g1_opt.zero_grad()
@@ -393,7 +388,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     g1_opt.step()
                     if g2_opt is not None:
                         g2_opt.step()
-                #Update Source Net (RUN0)
+                #Update Source Net After Generator (RUN0)
                 #RUN1 shows a slightly better performance.
                 #src_opt.step()      
                  
