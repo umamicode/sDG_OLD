@@ -338,7 +338,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         g1_list.append(g1_net)
 
         # 测试 i_tgt 模型的泛化效果
-        from main_test_digit import evaluate_digit
+        from sDG.main_test import evaluate_digit
         if data == 'mnist':
             pklpath = f'{svroot}/{i_tgt}-best.pkl'
             evaluate_digit(gpu, pklpath, pklpath+'.test')

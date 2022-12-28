@@ -480,7 +480,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         g1_list.append(g1_net)
         src_net.eval()
         # Test the generalization effect of the i_tgt model
-        from main_test_digit import evaluate_digit, evaluate_image, evaluate_pacs
+        from main_test import evaluate_digit, evaluate_image, evaluate_pacs
         
         if data == 'mnist':
             pklpath = f'{svroot}/{i_tgt}-best.pkl'
