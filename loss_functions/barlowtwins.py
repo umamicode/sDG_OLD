@@ -8,7 +8,7 @@ import itertools
 class BarlowTwinsLoss(nn.Module):
     """Supervised Contrastive Learning with BarlowTwins.
     It also supports the unsupervised contrastive loss in BarlowTwins"""
-    def __init__(self, projection_dim, lmda=0.0051, temperature=0.07, contrast_mode='all',
+    def __init__(self, projection_dim, lmda=0.051, temperature=0.07, contrast_mode='all',
                  base_temperature=0.07, device=None):
         super(BarlowTwinsLoss, self).__init__()
         self.temperature = temperature
@@ -89,7 +89,7 @@ class BarlowTwinsLoss(nn.Module):
             if self.projection_dim != 128:
                 on_diag /= (self.penalty)
                 off_diag /= (self.penalty * (self.penalty -1))
-            #OG ADV LOSS (NE PAS TOUCHER)
+            #OG ADV LOSS (NE PAS TOUCHER) -lmda test results: 0.051 optimal
             loss = on_diag + self.lmda * off_diag #satur/run0
             #loss = -1*loss
             
@@ -126,6 +126,7 @@ class BarlowTwinsLoss(nn.Module):
                         loss = on_diag + 0.0051 * off_diag
                         total_loss += loss
             loss = total_loss / (len(anchor_contrast_feature)**2) #og
+            #works better than dividing with (N^2 -N)
             
             
         return loss

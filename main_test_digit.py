@@ -113,17 +113,21 @@ def evaluate_image(gpu, modelpath, svpath, backbone, pretrained,projection_dim, 
     str2fun = { 
         'cifar10': data_loader.load_cifar10,
         'cifar10c': data_loader.load_cifar10c,
-        'cifar10c_lv': data_loader.load_cifar10c_level,
         'cifar10_1': data_loader.load_cifar10_1,
+        'cifar10c_lv': data_loader.load_cifar10c_level,
         }   
-    columns = ['cifar10','cifar10c','cifar10_1','cifar10c_lv']
-    outcolumns = ['cifar10','cifar10c','cifar10_1','cifar10c_lv1','cifar10c_lv2','cifar10c_lv3','cifar10c_lv4','cifar10c_lv5']
+    columns = ['cifar10','cifar10_1','cifar10c_lv']
+    corruption_type= ['fog','snow','frost','zoom_blur','defocus_blur','frosted_glass_blur','speckle_noise',
+                      'shot_noise','impulse_noise','jpeg_compression','pixelate','spatter']
+    outcolumns = ['cifar10','cifar10_1','fog','snow','frost','zoom_blur','defocus_blur','frosted_glass_blur','speckle_noise',
+                      'shot_noise','impulse_noise','jpeg_compression','pixelate','spatter']
     rst = []
     for data in columns:
         if data == 'cifar10c_lv':
-            #currently support 'fog' corruption
-            for i in range(1,6):
-                teset = str2fun[data](split= 'test', level= i,channels=channels)
+            #currently support 'fog' corruption -> changed: all corruption types
+            #for i in range(1,6):
+            for c_type in corruption_type:
+                teset = str2fun[data](split= 'test',type= c_type, level= 5,channels=channels)
                 teloader = DataLoader(teset, batch_size=128, num_workers=8)
                 teacc = evaluate(cls_net, teloader)
                 rst.append(teacc)
@@ -133,7 +137,7 @@ def evaluate_image(gpu, modelpath, svpath, backbone, pretrained,projection_dim, 
             teacc = evaluate(cls_net, teloader)
             rst.append(teacc)
     
-    df = pd.DataFrame([rst], columns=outcolumns)
+    df = pd.DataFrame([rst], columns=outcolumns) #outcolumns -> columns
     print(df)
     if svpath is not None:
         df.to_csv(svpath)        

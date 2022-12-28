@@ -44,12 +44,12 @@ HOME = os.environ['HOME']
 @click.option('--svroot', type=str, default='./saved')
 @click.option('--ckpt', type=str, default='./saved/best.pkl')
 @click.option('--w_cls', type=float, default=1.0, help='cls item weight')
-@click.option('--w_info', type=float, default=1.0, help='infomin item weights')
-@click.option('--w_cyc', type=float, default=10.0, help='cycleloss item weight')
-@click.option('--w_div', type=float, default=1.0, help='Polymorphism loss weight')
+@click.option('--w_info', type=float, default=0.1, help='infomin item weights')
+@click.option('--w_cyc', type=float, default=20.0, help='cycleloss item weight')
+@click.option('--w_div', type=float, default=2.0, help='Polymorphism loss weight')
 @click.option('--w_oracle', type=float, default=1.0, help='Oracle loss Weight')
-@click.option('--lmda', type=float, default=0.0051, help='Lambda for Adversarial BT')
-@click.option('--div_thresh', type=float, default=0.1, help='div_loss threshold')
+@click.option('--lmda', type=float, default=0.051, help='Lambda for Adversarial BT')
+@click.option('--div_thresh', type=float, default=0.5, help='div_loss threshold')
 @click.option('--w_tgt', type=float, default=1.0, help='target domain sample update tasknet intensity control')
 @click.option('--interpolation', type=str, default='pixel', help='Interpolate between the source domain and the generated domain to get a new domain, two ways：img/pixel')
 @click.option('--loss_fn', type=str, default='supcon', help= 'Loss Functions (supcon/barlowtwins/barlowquads/prism/vicreg')
@@ -141,6 +141,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
+            #src_opt = optim.SGD(src_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)
     elif data in ['pacs']:
         if backbone == 'custom':
             #NOT RECOMMENDED: PACS experiment was designed for Resnet Models
@@ -176,26 +177,41 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     #Create Oracle Model    
     if (pretrained =='True') and (oracle == 'True'):
         print("--Initializing Oracle Net for Mutual Information Maximization")
-        oracleloader = DataLoader(trset, batch_size=1, num_workers=8, \
-                    sampler=RandomSampler(trset, True, nbatch*batchsize))
-        for _, (oracle_x, oracle_y) in enumerate(oracleloader):  
-                    oracle_x, oracle_y = oracle_x.cuda(), oracle_y.cuda()
-        input_shape= oracle_x.shape  #cifar-10: [batch=1, 3, 32, 32]
-        del oracle_x, oracle_y
         
+        
+        #Oracle Net version.1
         oracle_net= copy.deepcopy(src_net)
         freeze("encoder",oracle_net)
         oracle_net= oracle_net.cuda()
         oracle_net.oracle= True
         oracle_net.get_hook()
         
+        #Oracle Net Version.2
+        #encoder = get_resnet(backbone, pretrained='True') # Pretrained Backbone default as False - We will load our model anyway
+        #n_features = encoder.fc.in_features
+        #output_dim = 10 
+        #oracle_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() 
+        #freeze("encoder",oracle_net)
+        #oracle_net.oracle= True
+        #oracle_net.get_hook()
+        
         #Mean/Variance Encoder
         #[WIP]
-        names, shapes = get_shapes(oracle_net, input_shape) #names,shapes
-        shapes = [list(shape) for shape in shapes[:-1]] #last layer is Identity() so ignorable..?
+        #oracleloader = DataLoader(trset, batch_size=1, num_workers=8, \
+        #            sampler=RandomSampler(trset, True, nbatch*batchsize))
+        #for _, (oracle_x, oracle_y) in enumerate(oracleloader):  
+        #            oracle_x, oracle_y = oracle_x.cuda(), oracle_y.cuda()
+        #input_shape= oracle_x.shape  #cifar-10: [batch=1, 3, 32, 32]
+        #del oracle_x, oracle_y
         
-        mean_encoders= nn.ModuleList([MeanEncoder(shape) for shape in shapes])
-        var_encoders= nn.ModuleList([VarianceEncoder(shape) for shape in shapes])
+        #names, shapes = get_shapes(oracle_net, input_shape) #names,shapes
+        #shapes = [list(shape) for shape in shapes[:-1]] #last layer is Identity() so ignorable..?
+        
+        #mean_encoders= nn.ModuleList([MeanEncoder(shape) for shape in shapes])
+        #var_encoders= nn.ModuleList([VarianceEncoder(shape) for shape in shapes])
+        
+        
+        
     
     
     #MIRO SETUP END
@@ -219,6 +235,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 flag_fixG = True
             loss_list = []
             time_list = []
+            
             
             src_net.train() 
             #src_net.eval()
@@ -268,11 +285,11 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     h_oracle= oracle_net(x,mode='encoder')#oracle
                     h_source= src_net(x,mode='encoder')#oracle
                     
-                    h_oracle_tgt= oracle_net(x_tgt, mode= 'encoder')
-                    h_oracle_tgt2= oracle_net(x2_tgt, mode= 'encoder')
+                    #h_oracle_tgt= oracle_net(x_tgt, mode= 'encoder')
+                    #h_oracle_tgt2= oracle_net(x2_tgt, mode= 'encoder')
                     
-                    h_source_tgt= src_net(x_tgt, mode= 'encoder')
-                    h_oracle_tgt2= src_net(x2_tgt, mode= 'encoder')
+                    #h_source_tgt= src_net(x_tgt, mode= 'encoder')
+                    #h_oracle_tgt2= src_net(x2_tgt, mode= 'encoder')
                 
                 
                 '''
@@ -286,12 +303,13 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 means= []
                 vars= []
                 reg_loss= 0.
-                for mean_encoder, var_encoder in zip_strict(mean_encoders,var_encoders):
-                    m= mean_encoder(h_src)
-                    v= var_encoder(h_src).cuda()
+                
+                #for mean_encoder, var_encoder in zip_strict(mean_encoders,var_encoders):
+                #    m= mean_encoder(h_source)
+                #    v= var_encoder(h_source).cuda()
                     
-                    vlb = (m.clone().detach() - h_oracle.clone().detach()).pow(2).div(v) + v.log()
-                    reg_loss += vlb.mean() / 2.    
+                #    vlb = (m - h_oracle).pow(2).div(v) + v.log()
+                #    reg_loss += vlb.mean() / 2.    
                 #[TODO] - should we use this to update srcnet? or gnet? or both?
                 '''
                 ############################
@@ -329,7 +347,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 #Source Task Model Loss
                 loss = src_cls_loss + w_tgt*con_loss + w_tgt*tgt_cls_loss #og
                 #Oracle Loss 
-                if (pretrained =='True') and (oracle == 'True'): #oracle
+                if (pretrained =='True') and (oracle =='True'): #oracle
                     loss += (w_oracle* oracle_loss) #w_oracle=1.0
                 
                 src_opt.zero_grad()
@@ -353,9 +371,9 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     zall = torch.cat([z_tgt.unsqueeze(1), zsrc[:,idx:idx+1].detach()], dim=1)
                     con_loss_adv = con_criterion(zall, adv=True) #[TODO]GCD 
                     
-                    if (pretrained =='True') and (oracle =='True'):
-                        oracle_tensors= torch.cat([h_oracle_tgt.unsqueeze(1), h_source_tgt.unsqueeze(1)], dim=1)
-                        oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True)
+                    #if (pretrained =='True') and (oracle =='True'):
+                    #    oracle_tensors= torch.cat([h_oracle_tgt.unsqueeze(1), h_source_tgt.unsqueeze(1)], dim=1)
+                    #    oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True)
                     
                     if gen in ['cnn', 'hr']:
                         div_loss = (x_tgt-x2_tgt).abs().mean([1,2,3]).clamp(max=div_thresh).mean() # Constraint Generator Divergence
@@ -367,8 +385,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                         
                     #w_cls= 1.0, w_div= 2.0, w_cyc=20, w_info= 0.1
                     loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss - w_info*con_loss_adv 
-                    if (pretrained =='True') and (oracle == 'True'):
-                        loss += (w_info* oracle_loss)
+                    #if (pretrained =='True') and (oracle == 'True'):
+                    #    loss += (w_info* oracle_loss)
                     
                     '''
                     - Error: RuntimeError: one of the variables needed for gradient computation
@@ -401,6 +419,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             
             # Test
             src_net.eval()
+            
             # mnist、cifar test process synthia is different
             if data in ['mnist', 'mnist_t', 'mnistvis']:
                 teacc = evaluate(src_net, teloader) 
@@ -408,6 +427,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 teacc = evaluate(src_net, teloader)
             elif data in ['pacs']:
                 teacc = evaluate(src_net, teloader)
+            
             #Save Best Model
             if best_acc < teacc:
                 best_acc = teacc
@@ -458,9 +478,10 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         # Save trained G1(Generator)
         torch.save({'g1':g1_net.state_dict()}, os.path.join(g1root, f'{i_tgt}.pkl'))
         g1_list.append(g1_net)
-
+        src_net.eval()
         # Test the generalization effect of the i_tgt model
         from main_test_digit import evaluate_digit, evaluate_image, evaluate_pacs
+        
         if data == 'mnist':
             pklpath = f'{svroot}/{i_tgt}-best.pkl'
             evaluate_digit(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained, projection_dim= projection_dim) #Pretrained set as False, it will load our model instead.

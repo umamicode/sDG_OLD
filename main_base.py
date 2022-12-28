@@ -99,7 +99,7 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
             cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
         elif backbone in ['resnet18','resnet50','wideresnet']:
             encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
-            n_features = encoder.fc.in_features
+            n_features = encoder.fc.in_features #(fc): Linear(in_features=512, out_features=1000, bias=True)
             output_dim= 10
             cls_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
             cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
@@ -207,6 +207,7 @@ def evaluate(net, teloader):
     correct, count = 0, 0
     ps = []
     ys = []
+    net.eval()
     for i,(x1, y1) in enumerate(teloader):
         with torch.no_grad():
             x1 = x1.cuda()

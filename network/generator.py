@@ -1,4 +1,4 @@
-
+#Reference: https://github.com/lileicv/PDEN/blob/main/network/generator.py by @lileicv
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
