@@ -28,7 +28,7 @@ loss_fn=barlowtwins #supcon/barlowtwins/barlowquads/prism/vicreg
 lr=1e-4 #1e-4 #1e-3 sucks #adam with 1e-5/1e-4 #sdg with 1e-4
 lr_scheduler=none #cosine/none  #adam with none # sgd with cosine
 optimizer=adam #sgd/adam
-#
+
 batchsize=256 #default:128 -> 256
 
 # Model Load/Save Path
