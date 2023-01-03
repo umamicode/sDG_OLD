@@ -2,18 +2,7 @@
 # $1 gpuid
 # $2 runid
 
-#digit method
-#w_cls=1.0
-#w_cyc=20
-#w_info=0.1 #0.1
-#w_div=2.0 #2.0
-#div_thresh=0.5
-#w_tgt=1.0
-#n_tgt=20
-#max_tgt=19
-#tgt_epochs=30 #30
-
-# cifar10 method
+# digit method
 w_cls=1.0
 w_cyc=20
 w_info=0.1 
@@ -41,7 +30,7 @@ loss_fn=barlowtwins #supcon/barlowtwins/barlowquads/prism/vicreg
 batchsize=128 #default:128 -> 256
 
 # Model Load/Save Path
-svroot=saved-model/stonebridge/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_lmda${lmda}_oracle${oracle}_${w_oracle}_run${2}
+svroot=saved-model/crusade/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_lmda${lmda}_oracle${oracle}_${w_oracle}_run${2}
 baseroot=saved-model/${data}/base_${backbone}_${pretrained}_${projection_dim}_run0/best.pkl
 
 # step1

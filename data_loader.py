@@ -257,11 +257,11 @@ def load_cifar10c(split='train', translate=None, twox=False, ntr=None, autoaug=N
         dataset = TensorDataset(x, y)
         return dataset
 
-def load_cifar10c_level(split='test', type= 'fog', level= 5, translate=None, twox=False, ntr=None, autoaug=None, channels=3):
-    path = f'data/cifar10c-{type}_{level}.pkl'
+def load_cifar10c_level(split='test', ctype= 'fog', level= 5, translate=None, twox=False, ntr=None, autoaug=None, channels=3):
+    path = f'data/cifar10c-{ctype}_{level}.pkl'
     cifar10_transforms_train= transforms.Compose([transforms.Resize((32,32))]) #224,224
     if not os.path.exists(path):
-        tfpath= f'cifar10_corrupted/{type}_{level}'.format(type= type, level= level)
+        tfpath= f'cifar10_corrupted/{ctype}_{level}'.format(ctype= ctype, level= level)
         dataset = tfds.as_numpy(tfds.load(tfpath, split= split, shuffle_files= True, batch_size= -1))
         x, y = dataset['image'], dataset['label']
         x= torch.tensor(x)

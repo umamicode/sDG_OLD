@@ -19,7 +19,7 @@ import click
 import time
 import numpy as np
 
-from network import mnist_net, res_net
+from network import mnist_net, res_net, cifar_net
 from network.modules import get_resnet
 from tools.farmer import *
 import data_loader
@@ -42,9 +42,10 @@ os.environ['TF_CPP_MIN_LOG_LEVEL']= '2'
 @click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50,wideresnet)')
 @click.option('--pretrained', type=str, default= 'False', help= 'Pretrained Backbone - ResNet18/50, Custom MNISTnet does not matter')
 @click.option('--projection_dim', type=int, default=128, help= "Projection Dimension of the representation vector for Resnet; Default: 128")
+@click.option('--optimizer', type=str, default='adam', help= "adam/sgd")
 
 
-def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr, lr_scheduler, svroot, backbone, pretrained, projection_dim):
+def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr, lr_scheduler, svroot, backbone, pretrained, projection_dim, optimizer):
     settings = locals().copy()
     print(settings)
 
@@ -102,18 +103,26 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
             n_features = encoder.fc.in_features #(fc): Linear(in_features=512, out_features=1000, bias=True)
             output_dim= 10
             cls_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
-            cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
-            #cls_opt = optim.SGD(cls_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4) 
-        
+            if optimizer== 'adam':
+                cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
+            elif optimizer == 'sgd': 
+                cls_opt = optim.SGD(cls_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay= 5e-4) #5e-4/1e-1
+        elif backbone in ['cifar_net']:
+            output_dim= 10
+            cls_net= cifar_net.ConvNet(projection_dim=projection_dim, output_dim=output_dim).cuda()
+            if optimizer == 'adam':
+                cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
+            elif optimizer == 'sgd':
+                cls_opt = optim.SGD(cls_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)
             ###### Old Code
             #[TODO- WideResNet?- MNIST_NET is too shallow]
             #cls_net = wideresnet.WideResNet(16, 10, 4).cuda()
-            #cls_net= mnist_net.ConvNet().cuda()
             #cls_opt = optim.SGD(cls_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)
         
         if lr_scheduler == 'cosine':
             scheduler = optim.lr_scheduler.CosineAnnealingLR(cls_opt, epochs)
-
+        elif lr_scheduler == 'linear':
+            scheduler = optim.lr_scheduler.LinearLR(cls_opt, epochs)
     elif data in ['pacs']:
         # Load Dataset
         trset = data_loader.load_pacs(split='train')
@@ -207,7 +216,7 @@ def evaluate(net, teloader):
     correct, count = 0, 0
     ps = []
     ys = []
-    net.eval()
+    net.eval() #12/30 midnight - ok
     for i,(x1, y1) in enumerate(teloader):
         with torch.no_grad():
             x1 = x1.cuda()

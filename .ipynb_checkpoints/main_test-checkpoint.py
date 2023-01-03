@@ -9,7 +9,7 @@ import numpy as np
 import click
 import pandas as pd
 
-from network import mnist_net, res_net , cifar_net
+from network import mnist_net, res_net
 #{TODO} Added ResNet
 from network.modules import get_resnet
 from tools.farmer import *
@@ -104,32 +104,23 @@ def evaluate_image(gpu, modelpath, svpath, backbone, pretrained,projection_dim, 
             n_features = encoder.fc.in_features
             output_dim = 10 #cifar10
             cls_net = res_net.ConvNet(encoder, projection_dim, n_features, output_dim, imdim=channels).cuda()
-    elif backbone in ['cifar_net']:
-        if channels == 3:
-            output_dim = 10 
-            cls_net = cifar_net.ConvNet(projection_dim=projection_dim, output_dim=output_dim).cuda()
-        elif channels == 1:
-            output_dim = 10 
-            cls_net = cifar_net.ConvNet(projection_dim=projection_dim, output_dim=output_dim,imdim=channels).cuda()
 
     saved_weight = torch.load(modelpath) #dict(saved_weight) only has cls_net as key
     cls_net.load_state_dict(saved_weight['cls_net'])
-    #cls_net.eval() #WHY NOT? evaluate has its torch.no_grad & eval anyways
-    #with torch.no_grad(): #added midnight 12/30
+    #cls_net.eval()
+
     # Test
     str2fun = { 
-            'cifar10': data_loader.load_cifar10,
-            'cifar10c': data_loader.load_cifar10c,
-            'cifar10_1': data_loader.load_cifar10_1,
-            'cifar10c_lv': data_loader.load_cifar10c_level,
-            }   
-    columns = ['cifar10','cifar10c_lv']
+        'cifar10': data_loader.load_cifar10,
+        'cifar10c': data_loader.load_cifar10c,
+        'cifar10_1': data_loader.load_cifar10_1,
+        'cifar10c_lv': data_loader.load_cifar10c_level,
+        }   
+    columns = ['cifar10','cifar10_1']#,'cifar10c_lv']
     corruption_type= ['fog','snow','frost','zoom_blur','defocus_blur','frosted_glass_blur','speckle_noise',
-                        'shot_noise','impulse_noise','jpeg_compression','pixelate','spatter']
-    outcolumns = ['cifar10','fog','snow','frost','zoom_blur','defocus_blur','frosted_glass_blur','speckle_noise',
-                        'shot_noise','impulse_noise','jpeg_compression','pixelate','spatter']
-    #columns= ['cifar10','cifar10_1']
-    #outcolumns= ['cifar10','cifar10_1']
+                      'shot_noise','impulse_noise','jpeg_compression','pixelate','spatter']
+    outcolumns = ['cifar10','cifar10_1']#,'fog','snow','frost','zoom_blur','defocus_blur','frosted_glass_blur','speckle_noise',
+                  #    'shot_noise','impulse_noise','jpeg_compression','pixelate','spatter']
     rst = []
     for data in columns:
         if data == 'cifar10c_lv':
@@ -150,9 +141,7 @@ def evaluate_image(gpu, modelpath, svpath, backbone, pretrained,projection_dim, 
     print(df)
     if svpath is not None:
         df.to_csv(svpath)        
-    del cls_net
-    
-    
+
 def evaluate_pacs(gpu, modelpath, svpath, backbone, pretrained,projection_dim, channels=3):
     os.environ['CUDA_VISIBLE_DEVICES'] = gpu
 
