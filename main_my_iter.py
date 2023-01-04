@@ -493,8 +493,6 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         # Save trained G1(Generator)
         torch.save({'g1':g1_net.state_dict()}, os.path.join(g1root, f'{i_tgt}.pkl'))
         
-        #added 0103 midnight
-        #if i_tgt != 0: (cifar_net: run0 - with this line, run 1 -without this line)- run1 better= so exclude this
         g1_list.append(g1_net)
         
         

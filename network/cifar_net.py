@@ -22,6 +22,8 @@ def freeze_(model):
     for p in model.parameters():
         p.requires_grad_(False)
 
+
+#WIDE-RESNET by @meliketoy (reference: https://github.com/meliketoy/wide-resnet.pytorch)
 def conv3x3(in_planes, out_planes, stride=1):
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=True)
 
@@ -105,7 +107,7 @@ class ConvNet(nn.Module):
         super(ConvNet, self).__init__()
         
         #added 
-        self.encoder= Wide_ResNet(depth=16, widen_factor=4, dropout_rate=0.3, num_classes= output_dim)
+        self.encoder= Wide_ResNet(depth=16, widen_factor=4, dropout_rate=0.3, num_classes= output_dim) #16,4
         self.projection_dim= projection_dim
         self.n_features= self.encoder.linear.in_features
         self.output_dim= output_dim
@@ -118,6 +120,7 @@ class ConvNet(nn.Module):
         self.encoder.linear = Identity()
         
         self.cls_head_src = nn.Linear(self.n_features, self.output_dim)
+        #self.cls_head_src= nn.Sequential(nn.Linear(self.n_features, self.n_features), nn.BatchNorm1d(self.n_features),nn.ReLU(),nn.Linear(self.n_features, self.output_dim))
         self.cls_head_tgt = nn.Linear(self.n_features, self.output_dim)
         #[TODO]- MLP for Contrastive Learning -Following model design of BarlowTwins Paper
         self.pro_head = nn.Sequential(
@@ -205,10 +208,6 @@ class ConvNetVis(nn.Module):
         elif mode == 'p_f':
             p = self.cls_head_src(out4)
             return p, out4
-        #elif mode == 'target':
-        #    p = self.cls_head_tgt(out4)
-        #    z = self.pro_head(out4)
-        #    z = F.normalize(z)
-        #    return p,z
+        
     
 
