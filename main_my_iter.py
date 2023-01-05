@@ -98,7 +98,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
 
     print("--Training With {data} data".format(data=data))
     trloader = DataLoader(trset, batch_size=batchsize, num_workers=8, \
-                sampler=RandomSampler(trset, True, nbatch*batchsize))
+                sampler=RandomSampler(trset, True, nbatch*batchsize))  #WADDUP DUDE 0105 midnight (nbatch*batchsize -> len(trset)) - @ image_randomsampler/ -nope. (bad result)
     teloader = DataLoader(teset, batch_size=batchsize, num_workers=8, shuffle=True, drop_last=True) 
     
     # Load model

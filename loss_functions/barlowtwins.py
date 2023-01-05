@@ -93,10 +93,11 @@ class BarlowTwinsLoss(nn.Module):
             loss = on_diag + self.lmda * off_diag #satur/run0
             #loss = -1*loss
             
-            #simple ADV LOSS (default:lmda=0.1)
-            #loss= on_diag / (off_diag * self.lmda)
             
             #Candidates
+            #simple ADV LOSS (default:lmda=0.1)
+            #loss= on_diag / (off_diag * self.lmda)
+            #others
             #loss = 1/ (loss + 1e-6) #loss_exp
             #loss = 0.1*on_diag + torch.exp(1 / (0.051* off_diag + 1e-6))
             #loss = on_diag / (loss +1e-6) #satur/run2
