@@ -4,7 +4,7 @@
 
 # base method
 data=mnist #(mnist/cifar10/pacs)
-backbone=custom #(custom/cifar_net/resnet18/resnet50/wideresnet) #mnist-custom/resnet #cifar10/pacs- resnet
+backbone=custom #(custom)
 pretrained=False
 projection_dim=128 #(custom default:128/ resnet default: 128)
 epochs=100 #default:50

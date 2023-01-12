@@ -3,15 +3,15 @@
 # $2 runid
 
 # base method
-data=cifar10 #(mnist/cifar10/pacs)
-backbone=cifar_net #(cifar_net/resnet18/resnet50/wideresnet) 
+data=pacs #(mnist/cifar10/pacs)
+backbone=pacs_net #(pacs_net/resnet18/resnet50/wideresnet) 
 pretrained=False
-projection_dim=128 #default: 128 / trying :1024 for cifar_net , 2048 for resnet50
+projection_dim=128 #(custom default:128/ cifar_net default: 128) default may also be 1024 -max (8192,16384)
 epochs=200 #default:50
-batchsize=128 #resnet50:128/256
+batchsize=128 #256 for (16,4) / 128 for (28,10)
 
-lr=1e-1 #1e-1 #resnet50-ft-5e-2
-lr_scheduler=cosine #none/cosine/step
+lr=2e-1 # for pacs
+lr_scheduler=cosine #none/cosine
 optimizer=sgd #adam/sgd
 # Base Model Path
 svroot=saved-model/${data}/base_${backbone}_${pretrained}_${projection_dim}_run${2} 

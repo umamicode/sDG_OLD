@@ -9,7 +9,7 @@ import numpy as np
 import click
 import pandas as pd
 
-from network import mnist_net, res_net , cifar_net
+from network import mnist_net, res_net , cifar_net, pacs_net
 #{TODO} Added ResNet
 from network.modules import get_resnet
 from tools.farmer import *
@@ -27,14 +27,15 @@ from utils import log
 @click.option('--pretrained', type=str, default= 'False', help= 'Pretrained Backbone - ResNet18/50, Custom MNISTnet does not matter')
 @click.option('--projection_dim', type=int, default=128, help= "Projection Dimension of the representation vector for Resnet; Default: 128")
 @click.option('--data', type=str, default= 'mnist', help= 'Data to evaluate from (mnist/cifar10)')
+@click.option('--c_level', type=int, default= 5, help= 'Corruption Level for CIFAR10c')
 
 
-def main(gpu, modelpath, svpath, backbone, channels, pretrained, projection_dim, data):
+def main(gpu, modelpath, svpath, backbone, channels, pretrained, projection_dim, data, c_level):
     print("--Testing Model from: {svroot}".format(svroot= modelpath))
     if data in ['mnist']:
         evaluate_digit(gpu, modelpath, svpath, backbone, pretrained,projection_dim, channels)
     elif data in ['cifar10']:
-        evaluate_image(gpu, modelpath, svpath, backbone, pretrained,projection_dim, channels)
+        evaluate_image(gpu, modelpath, svpath, backbone, pretrained,projection_dim, c_level, channels)
     elif data in ['pacs']:
         evaluate_pacs(gpu, modelpath, svpath, backbone, pretrained,projection_dim, channels)
 
@@ -84,7 +85,7 @@ def evaluate_digit(gpu, modelpath, svpath, backbone, pretrained,projection_dim, 
     if svpath is not None:
         df.to_csv(svpath)
 
-def evaluate_image(gpu, modelpath, svpath, backbone, pretrained,projection_dim, channels=3):
+def evaluate_image(gpu, modelpath, svpath, backbone, pretrained,projection_dim,c_level, channels=3):
     os.environ['CUDA_VISIBLE_DEVICES'] = gpu
 
     # Load Model
@@ -111,11 +112,11 @@ def evaluate_image(gpu, modelpath, svpath, backbone, pretrained,projection_dim, 
         elif channels == 1:
             output_dim = 10 
             cls_net = cifar_net.ConvNet(projection_dim=projection_dim, output_dim=output_dim,imdim=channels).cuda()
-
+    
+    
     saved_weight = torch.load(modelpath) #dict(saved_weight) only has cls_net as key
     cls_net.load_state_dict(saved_weight['cls_net'])
-    #cls_net.eval() #WHY NOT? evaluate has its torch.no_grad & eval anyways
-    #with torch.no_grad(): #added midnight 12/30
+    
     # Test
     str2fun = { 
             'cifar10': data_loader.load_cifar10,
@@ -123,20 +124,17 @@ def evaluate_image(gpu, modelpath, svpath, backbone, pretrained,projection_dim, 
             'cifar10_1': data_loader.load_cifar10_1,
             'cifar10c_lv': data_loader.load_cifar10c_level,
             }   
-    columns = ['cifar10','cifar10c_lv']
+    columns = ['cifar10c_lv']
     corruption_type= ['fog','snow','frost','zoom_blur','defocus_blur','frosted_glass_blur','speckle_noise',
-                        'shot_noise','impulse_noise','jpeg_compression','pixelate','spatter']
-    outcolumns = ['cifar10','fog','snow','frost','zoom_blur','defocus_blur','frosted_glass_blur','speckle_noise',
-                        'shot_noise','impulse_noise','jpeg_compression','pixelate','spatter']
-    #columns= ['cifar10','cifar10_1']
-    #outcolumns= ['cifar10','cifar10_1']
+                        'shot_noise','impulse_noise','jpeg_compression','pixelate','spatter','brightness','contrast',
+                        'elastic','gaussian_blur','gaussian_noise','motion_blur','saturate']
+    
+    
     rst = []
     for data in columns:
         if data == 'cifar10c_lv':
-            #currently support 'fog' corruption -> changed: all corruption types
-            #for i in range(1,6):
             for c_type in corruption_type:
-                teset = str2fun[data](split= 'test',ctype= c_type, level= 5,channels=channels)
+                teset = str2fun[data](split= 'test',ctype= c_type, level= c_level,channels=channels)
                 teloader = DataLoader(teset, batch_size=128, num_workers=8)
                 teacc = evaluate(cls_net, teloader)
                 rst.append(teacc)
@@ -146,7 +144,7 @@ def evaluate_image(gpu, modelpath, svpath, backbone, pretrained,projection_dim, 
             teacc = evaluate(cls_net, teloader)
             rst.append(teacc)
     
-    df = pd.DataFrame([rst], columns=outcolumns) #outcolumns -> columns
+    df = pd.DataFrame([rst], columns=corruption_type) #outcolumns -> columns -> corruption_type
     print(df)
     if svpath is not None:
         df.to_csv(svpath)        
@@ -173,19 +171,24 @@ def evaluate_pacs(gpu, modelpath, svpath, backbone, pretrained,projection_dim, c
             n_features = encoder.fc.in_features
             output_dim = 7 #pacs
             cls_net = res_net.ConvNet(encoder, projection_dim, n_features, output_dim, imdim=channels).cuda()
+    elif backbone in ['pacs_net']:
+        if channels == 3:
+            output_dim = 7 
+            cls_net = pacs_net.ConvNet(projection_dim=projection_dim, output_dim=output_dim).cuda()
+        elif channels == 1:
+            output_dim = 7 
+            cls_net = cifar_net.ConvNet(projection_dim=projection_dim, output_dim=output_dim,imdim=channels).cuda()
 
     saved_weight = torch.load(modelpath) #dict(saved_weight) only has cls_net as key
     cls_net.load_state_dict(saved_weight['cls_net'])
-    #cls_net.eval()
 
     # Test
     str2fun = { 
-        'test': data_loader.load_pacs,
         'art': data_loader.load_pacs_acs,
         'cartoon': data_loader.load_pacs_acs,
         'sketch': data_loader.load_pacs_acs
         }   
-    columns = ['test','art','cartoon','sketch']
+    columns = ['art','cartoon','sketch']
     rst = []
     for data in columns:
         if data == 'test':

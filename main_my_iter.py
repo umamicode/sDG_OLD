@@ -15,8 +15,8 @@ import time
 import numpy as np
 import copy
 
-from loss_functions import SupConLoss, PRISMLoss, BarlowTwinsLoss, BarlowQuadsLoss, VicReg
-from network import mnist_net, res_net, cifar_net, generator
+from loss_functions import SupConLoss, BarlowTwinsLoss #PRISMLoss, BarlowQuadsLoss, VicReg
+from network import mnist_net, res_net, cifar_net, pacs_net, generator
 from network.modules import get_resnet, get_generator, freeze, unfreeze, freeze_, unfreeze_, LARS
 from tools.miro_utils import *
 from tools.farmer import *
@@ -104,6 +104,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     # Load model
     g1_list = []
     ### Load Task Model
+    ###MNIST
     if data in ['mnist', 'mnist_t']:
         if backbone == 'custom':
             src_net = mnist_net.ConvNet(projection_dim).cuda()
@@ -119,13 +120,13 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
             
-        
     elif data in ['mnistvis']:
         src_net = mnist_net.ConvNetVis().cuda()
         saved_weight = torch.load(ckpt)
         src_net.load_state_dict(saved_weight['cls_net'])
         src_opt = optim.Adam(src_net.parameters(), lr=lr)
     
+    ###CIFAR
     elif data in ['cifar10']:
         if backbone == 'custom':
             #NOT RECOMMENDED: CIFAR10 experiment was designed for Resnet Models
@@ -154,7 +155,9 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             if optimizer == 'adam':
                 src_opt = optim.Adam(src_net.parameters(), lr=lr)
             elif optimizer == 'sgd':
-                src_opt = optim.SGD(src_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)
+                src_opt = optim.SGD(src_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)     
+                
+    #PACS
     elif data in ['pacs']:
         if backbone == 'custom':
             #NOT RECOMMENDED: PACS experiment was designed for Resnet Models
@@ -170,25 +173,33 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
+        elif backbone in ['pacs_net']:
+            output_dim= 7
+            src_net= pacs_net.ConvNet(projection_dim=projection_dim, output_dim=output_dim).cuda()
+            saved_weight = torch.load(ckpt)
+            src_net.load_state_dict(saved_weight['cls_net'])
+            if optimizer == 'adam':
+                src_opt = optim.Adam(src_net.parameters(), lr=lr)
+            elif optimizer == 'sgd':
+                src_opt = optim.SGD(src_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)
     
-    #TRYING FREEZE - NOPE
-    #freeze("encoder",src_net) #Perfomance Drops
-    
+
     cls_criterion = nn.CrossEntropyLoss()
     
     if loss_fn=='supcon':
         con_criterion = SupConLoss()
-    elif loss_fn=='prism':
-        con_criterion = PRISMLoss(projection_dim)
     elif loss_fn=='barlowtwins':
         con_criterion = BarlowTwinsLoss(projection_dim, lmda= lmda)
+    '''
+    elif loss_fn=='prism':
+        con_criterion = PRISMLoss(projection_dim)
     elif loss_fn=='barlowquads':
         con_criterion = BarlowQuadsLoss(projection_dim)
     elif loss_fn=='vicreg':
         con_criterion = VicReg(projection_dim, batchsize)
+    '''
     ##########################################    
     #Create Oracle Model    
-    #if (pretrained =='True') and (oracle == 'True'):
     if (oracle == 'True'):
         print("--Initializing Oracle Net for Mutual Information Maximization")
         
@@ -225,12 +236,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         
         #mean_encoders= nn.ModuleList([MeanEncoder(shape) for shape in shapes])
         #var_encoders= nn.ModuleList([VarianceEncoder(shape) for shape in shapes])
-        
-        
-        
-    
-    
-    #MIRO SETUP END
+
     ##########################################
     # Train
     global_best_acc = 0
@@ -297,13 +303,13 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 # MIRO (0/2) - Forward Oracle (Closed ATM)
                 # oracle forward
                 
-                #if (pretrained == 'True') and (oracle == 'True'): #oracle
                 if (oracle == 'True'):
+                    #For Domain Alignment
                     h_oracle= oracle_net(x,mode='encoder')#oracle
                     h_source= src_net(x,mode='encoder')#oracle
                     
-                    
-                
+                    #For Domain Expansion
+                    #[TODO]
                 
                 '''
                 #h_oracle= oracle_net(x, mode= 'encoder')
@@ -359,17 +365,16 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     
                 #Source Task Model Loss
                 loss = src_cls_loss + w_tgt*con_loss + w_tgt*tgt_cls_loss #og
+                
                 #Oracle Loss 
-                #if (pretrained =='True') and (oracle =='True'): #oracle
                 if (oracle == 'True'):
-                    loss += (w_oracle* oracle_loss) #w_oracle=1.0
+                    loss += (w_oracle* oracle_loss) #w_oracle=1.0 #og
                 
                 src_opt.zero_grad()
                 if flag_fixG:
-                    loss.backward()
+                    loss.backward() #og
                 else:
-                    loss.backward(retain_graph=True)
-                          
+                    loss.backward(retain_graph=True) #og
                 
                 
                 # G1-NET UPDATE
@@ -380,14 +385,12 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     cyc_loss = torch.tensor(0)
                     #Update Source Net (RUN1)
                     src_opt.step() 
+                
                 else:
                     idx = np.random.randint(0, zsrc.size(1))
                     zall = torch.cat([z_tgt.unsqueeze(1), zsrc[:,idx:idx+1].detach()], dim=1)
                     con_loss_adv = con_criterion(zall, adv=True) #[TODO]GCD 
                     
-                    #if (pretrained =='True') and (oracle =='True'):
-                    #    oracle_tensors= torch.cat([h_oracle_tgt.unsqueeze(1), h_source_tgt.unsqueeze(1)], dim=1)
-                    #    oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True)
                     
                     if gen in ['cnn', 'hr']:
                         div_loss = (x_tgt-x2_tgt).abs().mean([1,2,3]).clamp(max=div_thresh).mean() # Constraint Generator Divergence
@@ -397,10 +400,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                         div_loss = (H_tgt-H2_tgt).abs().mean([1,2]).clamp(max=div_thresh).mean()
                         cyc_loss = torch.tensor(0).cuda()
                         
-                    #w_cls= 1.0, w_div= 2.0, w_cyc=20, w_info= 0.1
-                    loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss - w_info*con_loss_adv 
-                    #if (pretrained =='True') and (oracle == 'True'):
-                    #    loss += (w_info* oracle_loss)
+                    ##w_cls= 1.0, w_div= 2.0, w_cyc=20, w_info= 0.1
+                    loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss - w_info*con_loss_adv #og
                     
                     '''
                     - Error: RuntimeError: one of the variables needed for gradient computation
@@ -416,13 +417,14 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     loss.backward()
                     
                     #Update Source Net (RUN1)
-                    src_opt.step() 
+                    src_opt.step() #NE PAS TOUCHER #og
                     g1_opt.step()
                     if g2_opt is not None:
                         g2_opt.step()
-                #Update Source Net After Generator (RUN0)
-                #RUN1 shows a slightly better performance.
-                #src_opt.step()      
+                    
+                    
+                #Update Source Net After Generator (RUN0) #RUN1 shows a slightly better performance.
+                #src_opt.step()    #gpu3
                  
                 # update learning rate
                 if lr_scheduler in ['cosine']:
@@ -461,8 +463,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             writer.add_scalar('scalar/div_loss', div_loss, i_tgt*tgt_epochs+epoch)
             writer.add_scalar('scalar/cyc_loss', cyc_loss, i_tgt*tgt_epochs+epoch)
             writer.add_scalar('scalar/teacc', teacc, i_tgt*tgt_epochs+epoch)
-            #added in midnight 0103
-            #if i_tgt != 0:
+            
             g1_all = g1_list + [g1_net]
             x = x[0:10]
             l1 = make_grid(x, 1, 2, pad_value=128) 
@@ -496,7 +497,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         g1_list.append(g1_net)
         
         
-        # Test the generalization effect of the i_tgt model - Test Data is infused(?)
+        # Test the generalization effect of the i_tgt model - (run1)
         '''
         from main_test import evaluate_digit, evaluate_image, evaluate_pacs
         

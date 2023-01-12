@@ -337,7 +337,7 @@ def load_pacs(split='train', translate=None, twox=False, ntr=None, autoaug=None,
 
     pacs_convertor= {'train':DIR_PHOTO,'test':DIR_PHOTO, 'photo':DIR_PHOTO, 'art':DIR_ART, 'cartoon':DIR_CARTOON, 'sketch':DIR_SKETCH}
     
-    pacs_transforms_train= transforms.Compose([transforms.ToTensor(),transforms.Resize((224,224))]) #224,224
+    pacs_transforms_train= transforms.Compose([transforms.CenterCrop(224),transforms.Resize((224,224)),transforms.ToTensor()]) #224,224
     if not os.path.exists(path):
         
         dataset= ImageFolder(pacs_convertor[split], transform=pacs_transforms_train)
@@ -348,10 +348,7 @@ def load_pacs(split='train', translate=None, twox=False, ntr=None, autoaug=None,
         #Train Set
         train_loader = torch.utils.data.DataLoader(train_set,batch_size=train_size,drop_last=True)
         x, y= next(iter(train_loader))
-        #x, y = dataset.image, dataset.label
         x= torch.tensor(x)
-        #x = (x.float()/255.)#.unsqueeze(1).repeat(1,3,1,1)  #<class 'torch.Tensor'>
-        #x= x.permute(0,3,1,2) #[batchsize,w,h,channel] -> [batchsize, channel, w,h]
         y = torch.tensor(y)
         with open(trainpath, 'wb') as f:
             pickle.dump([x, y], f)
@@ -360,8 +357,6 @@ def load_pacs(split='train', translate=None, twox=False, ntr=None, autoaug=None,
         test_loader = torch.utils.data.DataLoader(test_set,batch_size=test_size,drop_last=True, shuffle=True)
         x, y= next(iter(test_loader))
         x= torch.tensor(x)
-        #x = (x.float()/255.)#.unsqueeze(1).repeat(1,3,1,1)  #<class 'torch.Tensor'>
-        #x= x.permute(0,3,1,2) #[batchsize,w,h,channel] -> [batchsize, channel, w,h]
         y = torch.tensor(y)
         with open(testpath, 'wb') as f:
             pickle.dump([x, y], f) 
@@ -389,10 +384,9 @@ def load_pacs_acs(split='art', translate=None, twox=False, ntr=None, autoaug=Non
     DIR_SKETCH = './data/PACS/sketch'
 
     path = f'data/pacs-{split}.pkl'
-    '''
     pacs_convertor= {'photo':DIR_PHOTO, 'art':DIR_ART, 'cartoon':DIR_CARTOON, 'sketch':DIR_SKETCH}
     
-    pacs_transforms_train= transforms.Compose([transforms.ToTensor(),transforms.Resize((32,32))]) #224,224
+    pacs_transforms_train= transforms.Compose([transforms.CenterCrop(224),transforms.Resize((224,224)),transforms.ToTensor()]) #224,224
     
     if not os.path.exists(path):
         
@@ -400,7 +394,7 @@ def load_pacs_acs(split='art', translate=None, twox=False, ntr=None, autoaug=Non
         #train_size = int(0.8 * len(dataset))
         #test_size = len(dataset) - train_size
         #train_set, test_set = random_split(dataset, [train_size, test_size])
-
+        '''
         #Train Set
         train_loader = torch.utils.data.DataLoader(train_set,batch_size=train_size,drop_last=True)
         x, y= next(iter(train_loader))
@@ -411,8 +405,9 @@ def load_pacs_acs(split='art', translate=None, twox=False, ntr=None, autoaug=Non
         y = torch.tensor(y)
         with open(trainpath, 'wb') as f:
             pickle.dump([x, y], f)
-        
+        '''
         #Test Set
+        test_size= len(dataset)
         test_loader = torch.utils.data.DataLoader(test_set,batch_size=test_size,drop_last=True, shuffle=True)
         x, y= next(iter(test_loader))
         x= torch.tensor(x)
@@ -421,7 +416,7 @@ def load_pacs_acs(split='art', translate=None, twox=False, ntr=None, autoaug=Non
         y = torch.tensor(y)
         with open(testpath, 'wb') as f:
             pickle.dump([x, y], f) 
-    '''
+    
     with open(path, 'rb') as f:
         x, y = pickle.load(f)
         if channels == 1:

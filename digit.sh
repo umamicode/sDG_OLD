@@ -21,7 +21,7 @@ oracle=False
 
 
 data=mnist #mnist/cifar10/pacs
-backbone=custom #(custom/resnet18/resnet50/wideresnet) #mnist: custom/resnet #cifar10/pacs: resnet
+backbone=custom #(custom)
 pretrained=False #Only to load right base model. my_iter process is set as pretrained=False.
 projection_dim=128 #default: (mnist: 128/ cifar-10:)
 loss_fn=barlowtwins #supcon/barlowtwins/barlowquads/prism/vicreg

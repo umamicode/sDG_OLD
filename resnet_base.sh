@@ -4,13 +4,13 @@
 
 # base method
 data=cifar10 #(mnist/cifar10/pacs)
-backbone=cifar_net #(cifar_net/resnet18/resnet50/wideresnet) 
+backbone=resnet50 #(cifar_net/resnet18/resnet50/wideresnet) 
 pretrained=False
-projection_dim=128 #default: 128 / trying :1024 for cifar_net , 2048 for resnet50
+projection_dim=2048 #default: 128 / trying :1024 for cifar_net , 2048 for resnet50
 epochs=200 #default:50
 batchsize=128 #resnet50:128/256
 
-lr=1e-1 #1e-1 #resnet50-ft-5e-2
+lr=1e-2 #1e-1 #resnet50-ft-5e-2
 lr_scheduler=cosine #none/cosine/step
 optimizer=sgd #adam/sgd
 # Base Model Path

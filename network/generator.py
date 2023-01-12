@@ -3,18 +3,20 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+from network.modules.batchinstance_norm import BatchInstanceNorm2d
 
 class AdaIN2d(nn.Module):
     def __init__(self, style_dim, num_features):
         super().__init__()
-        self.norm = nn.InstanceNorm2d(num_features, affine=False)
+        self.norm = nn.InstanceNorm2d(num_features, affine=False)  
+        #self.norm = BatchInstanceNorm2d(num_features, affine = True)
         self.fc = nn.Linear(style_dim, num_features*2)
     def forward(self, x, s): 
         h = self.fc(s)
         h = h.view(h.size(0), h.size(1), 1, 1)
         gamma, beta = torch.chunk(h, chunks=2, dim=1)
         return (1 + gamma) * self.norm(x) + beta
-        #return (1+gamma)*(x)+beta
+        
 
 class Reshape(nn.Module):
     def __init__(self, *args):
