@@ -6,7 +6,7 @@
 data=cifar10 #(mnist/cifar10/pacs)
 backbone=cifar_net #(cifar_net/resnet18/resnet50/wideresnet) 
 pretrained=False
-projection_dim=128 #default: 128 / trying :1024 for cifar_net , 2048 for resnet50
+projection_dim=256 #default: 128 / trying :1024 for cifar_net , 2048 for resnet50
 epochs=200 #default:50
 batchsize=128 #resnet50:128/256
 

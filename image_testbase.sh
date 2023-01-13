@@ -34,9 +34,9 @@ batchsize=128 #default:128
 c_level=1
 
 # Model Load/Save Path
-svroot=saved-model/cifarnet/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_lmda${lmda}_oracle${oracle}_${w_oracle}_lr${lr}_${lr_scheduler}_${optimizer}_run${2}
-
+baseroot=saved-model/${data}/base_${backbone}_${pretrained}_${projection_dim}_run0/best.pkl
+svpath=saved-model/${data}/base_${backbone}_${pretrained}_${projection_dim}_run0
 # step1
-python3 main_test.py --gpu $1 --modelpath ${svroot}/${max_tgt}-best.pkl --svpath ${svroot}/test_${c_level}.log --backbone ${backbone} --projection_dim ${projection_dim} --data ${data} --c_level ${c_level}
+python3 main_test.py --gpu $1 --modelpath ${baseroot} --svpath ${svpath}/test_${c_level}.log --backbone ${backbone} --projection_dim ${projection_dim} --data ${data} --c_level ${c_level}
 
 #done

@@ -18,7 +18,6 @@ class BarlowTwinsLoss(nn.Module):
         self.penalty= projection_dim/128 #normalized loss
         self.device=device
         self.lmda= lmda
-        #self.bn = nn.BatchNorm1d(sizes[-1], affine=False)
 
     def forward(self, features, labels=None, mask=None, adv=False, standardize = True):
         """Compute loss for model. If both `labels` and `mask` are None,
@@ -91,7 +90,7 @@ class BarlowTwinsLoss(nn.Module):
                 off_diag /= (self.penalty * (self.penalty -1))
             #OG ADV LOSS (NE PAS TOUCHER) -lmda test results: 0.051 optimal
             loss = on_diag + self.lmda * off_diag #satur/run0
-            #loss = -1*loss
+            
             
             
             #Candidates
@@ -119,12 +118,13 @@ class BarlowTwinsLoss(nn.Module):
                         
                         c= torch.matmul(anchor_feature.T, contrast_feature) 
                         c.div_(batch_size)
-                        on_diag = torch.diagonal(c).add_(-1).pow_(2).sum()# / self.penalty
-                        off_diag = off_diagonal(c).pow_(2).sum()# / (self.penalty * (self.penalty -1))
+                        on_diag = torch.diagonal(c).add_(-1).pow_(2).sum()
+                        off_diag = off_diagonal(c).pow_(2).sum()
                         if self.projection_dim != 128:
                             on_diag /= (self.penalty)
                             off_diag /= (self.penalty * (self.penalty -1))
                         loss = on_diag + 0.0051 * off_diag
+                        
                         total_loss += loss
             loss = total_loss / (len(anchor_contrast_feature)**2) #og
             #works better than dividing with (N^2 -N)

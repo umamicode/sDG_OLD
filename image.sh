@@ -24,13 +24,13 @@ oracle=False
 data=cifar10 #mnist/cifar10/pacs
 backbone=cifar_net #(cifar_net/resnet18/resnet50/wideresnet) 
 pretrained=False #Only to load right base model. my_iter process is set as pretrained=False.
-projection_dim=128 #default: (mnist: 128/ cifar-10:128)
+projection_dim=256 #default: (mnist: 128/ cifar-10:128)
 loss_fn=barlowtwins #supcon/barlowtwins/barlowquads/prism/vicreg
 lr=1e-4 #1e-4 #1e-3 sucks #adam with 1e-5/1e-4 #sdg with 1e-4
 lr_scheduler=none #cosine/none  #adam with none # sgd with cosine
 optimizer=adam #sgd/adam
 
-batchsize=128 #default:128 
+batchsize=256 #default:128 (64,128,256)
 
 # Model Load/Save Path
 svroot=saved-model/cifarnet/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_lmda${lmda}_oracle${oracle}_${w_oracle}_lr${lr}_${lr_scheduler}_${optimizer}_run${2}

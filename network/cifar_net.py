@@ -76,7 +76,7 @@ class WideResNet(nn.Module):
         self.conv1 = nn.Conv2d(3, nChannels[0], kernel_size=3, stride=1,
                                padding=1, bias=False)
         # 1st block
-        self.block1 = NetworkBlock(n, nChannels[0], nChannels[1], block, 1, dropRate)
+        self.block1 = NetworkBlock(n, nChannels[0], nChannels[1], block, 1, dropRate) 
         # 2nd block
         self.block2 = NetworkBlock(n, nChannels[1], nChannels[2], block, 2, dropRate)
         # 3rd block
@@ -129,13 +129,13 @@ class ConvNet(nn.Module):
         self.cls_head_tgt = nn.Linear(self.n_features, self.output_dim) #{640->10}
         #[TODO]- MLP for Contrastive Learning -Following model design of BarlowTwins Paper
         self.pro_head = nn.Sequential(
-            nn.Linear(self.n_features, self.n_features*4, bias=False),  #self.n_features -> self.projection_dim
-            nn.BatchNorm1d(self.n_features*4),
+            nn.Linear(self.n_features, self.n_features, bias=False),  #self.n_features -> self.projection_dim
+            nn.BatchNorm1d(self.n_features),
             nn.ReLU(),
-            nn.Linear(self.n_features*4, self.n_features*4, bias=False),  #self.n_features -> self.projection_dim
-            nn.BatchNorm1d(self.n_features*4),
+            nn.Linear(self.n_features, self.n_features, bias=False),  #self.n_features -> self.projection_dim
+            nn.BatchNorm1d(self.n_features),
             nn.ReLU(),
-            nn.Linear(self.n_features*4, self.projection_dim, bias=False), #self.n_features,self.projection_dim -> self.projection_dim,self.projection_dim
+            nn.Linear(self.n_features, self.projection_dim, bias=False), #self.n_features,self.projection_dim -> self.projection_dim,self.projection_dim
         )
         
     

@@ -184,11 +184,12 @@ def evaluate_pacs(gpu, modelpath, svpath, backbone, pretrained,projection_dim, c
 
     # Test
     str2fun = { 
+        'test': data_loader.load_pacs,
         'art': data_loader.load_pacs_acs,
         'cartoon': data_loader.load_pacs_acs,
         'sketch': data_loader.load_pacs_acs
         }   
-    columns = ['art','cartoon','sketch']
+    columns = ['test','art','cartoon','sketch']
     rst = []
     for data in columns:
         if data == 'test':

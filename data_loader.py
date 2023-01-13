@@ -320,7 +320,7 @@ def load_cifar10_1(split='train', translate=None, twox=False, ntr=None, autoaug=
     
 
 #PACS
-def load_pacs(split='train', translate=None, twox=False, ntr=None, autoaug=None, channels=3):
+def load_pacs(split='test', translate=None, twox=False, ntr=None, autoaug=None, channels=3):
     #PACS Dataset
     NUM_CLASSES = 7      # 7 classes for each domain: 'dog', 'elephant', 'giraffe', 'guitar', 'horse', 'house', 'person'
     DATASETS_NAMES = ['photo', 'art', 'cartoon', 'sketch']
@@ -335,7 +335,7 @@ def load_pacs(split='train', translate=None, twox=False, ntr=None, autoaug=None,
     trainpath= 'data/pacs-train.pkl'
     testpath= 'data/pacs-test.pkl'
 
-    pacs_convertor= {'train':DIR_PHOTO,'test':DIR_PHOTO, 'photo':DIR_PHOTO, 'art':DIR_ART, 'cartoon':DIR_CARTOON, 'sketch':DIR_SKETCH}
+    pacs_convertor= {'train':DIR_PHOTO,'test':DIR_PHOTO}
     
     pacs_transforms_train= transforms.Compose([transforms.CenterCrop(224),transforms.Resize((224,224)),transforms.ToTensor()]) #224,224
     if not os.path.exists(path):
@@ -382,6 +382,7 @@ def load_pacs_acs(split='art', translate=None, twox=False, ntr=None, autoaug=Non
     DIR_ART = './data/PACS/art_painting'
     DIR_CARTOON = './data/PACS/cartoon'
     DIR_SKETCH = './data/PACS/sketch'
+    DIR_PHOTO = './data/PACS/photo'
 
     path = f'data/pacs-{split}.pkl'
     pacs_convertor= {'photo':DIR_PHOTO, 'art':DIR_ART, 'cartoon':DIR_CARTOON, 'sketch':DIR_SKETCH}
@@ -390,31 +391,18 @@ def load_pacs_acs(split='art', translate=None, twox=False, ntr=None, autoaug=Non
     
     if not os.path.exists(path):
         
-        dataset= ImageFolder(pacs_convertor[domain], transform=pacs_transforms_train)
+        dataset= ImageFolder(pacs_convertor[split], transform=pacs_transforms_train)
         #train_size = int(0.8 * len(dataset))
         #test_size = len(dataset) - train_size
         #train_set, test_set = random_split(dataset, [train_size, test_size])
-        '''
-        #Train Set
-        train_loader = torch.utils.data.DataLoader(train_set,batch_size=train_size,drop_last=True)
-        x, y= next(iter(train_loader))
-        #x, y = dataset.image, dataset.label
-        x= torch.tensor(x)
-        #x = (x.float()/255.)#.unsqueeze(1).repeat(1,3,1,1)  #<class 'torch.Tensor'>
-        #x= x.permute(0,3,1,2) #[batchsize,w,h,channel] -> [batchsize, channel, w,h]
-        y = torch.tensor(y)
-        with open(trainpath, 'wb') as f:
-            pickle.dump([x, y], f)
-        '''
+        
         #Test Set
         test_size= len(dataset)
-        test_loader = torch.utils.data.DataLoader(test_set,batch_size=test_size,drop_last=True, shuffle=True)
+        test_loader = torch.utils.data.DataLoader(dataset,batch_size=test_size,drop_last=True, shuffle=True)
         x, y= next(iter(test_loader))
         x= torch.tensor(x)
-        #x = (x.float()/255.)#.unsqueeze(1).repeat(1,3,1,1)  #<class 'torch.Tensor'>
-        #x= x.permute(0,3,1,2) #[batchsize,w,h,channel] -> [batchsize, channel, w,h]
         y = torch.tensor(y)
-        with open(testpath, 'wb') as f:
+        with open(path, 'wb') as f:
             pickle.dump([x, y], f) 
     
     with open(path, 'rb') as f:
