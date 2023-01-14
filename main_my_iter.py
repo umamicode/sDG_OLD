@@ -401,6 +401,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                         cyc_loss = torch.tensor(0).cuda()
                         
                     ##w_cls= 1.0, w_div= 2.0, w_cyc=20, w_info= 0.1
+                    #con_loss_adv=torch.tensor(0)
                     loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss - w_info*con_loss_adv #og
                     
                     '''

@@ -90,7 +90,7 @@ class BarlowTwinsLoss(nn.Module):
                 off_diag /= (self.penalty * (self.penalty -1))
             #OG ADV LOSS (NE PAS TOUCHER) -lmda test results: 0.051 optimal
             loss = on_diag + self.lmda * off_diag #satur/run0
-            
+            #print("ADV: on_diag:{a}, off_diag:{b}".format(a=on_diag,b=off_diag))
             
             
             #Candidates
@@ -124,6 +124,7 @@ class BarlowTwinsLoss(nn.Module):
                             on_diag /= (self.penalty)
                             off_diag /= (self.penalty * (self.penalty -1))
                         loss = on_diag + 0.0051 * off_diag
+                        #print("on_diag:{a}, off_diag:{b}".format(a=on_diag,b=off_diag))
                         
                         total_loss += loss
             loss = total_loss / (len(anchor_contrast_feature)**2) #og

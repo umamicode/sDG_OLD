@@ -26,7 +26,7 @@ oracle=False
 
 data=pacs #mnist/cifar10/pacs
 backbone=resnet18 #(pacs_net/resnet18/resnet50/wideresnet) 
-pretrained=True #Only to load right base model. my_iter process is set as pretrained=False.
+pretrained=False #Only to load right base model. my_iter process is set as pretrained=False.
 projection_dim=512 #default: (mnist: 128/ cifar-10:128)
 loss_fn=barlowtwins #supcon/barlowtwins/barlowquads/prism/vicreg
 lr=1e-4 #1e-4 #1e-3 sucks #adam with 1e-5/1e-4 #sdg with 1e-4
@@ -36,7 +36,7 @@ optimizer=adam #sgd/adam
 batchsize=16 #default:16 for pacs
 
 # Model Load/Save Path
-svroot=saved-model/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_lmda${lmda}_oracle${oracle}_${w_oracle}_lr${lr}_${lr_scheduler}_${optimizer}_run${2}
+svroot=saved-model/printstuff/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_lmda${lmda}_oracle${oracle}_${w_oracle}_lr${lr}_${lr_scheduler}_${optimizer}_run${2}
 baseroot=saved-model/${data}/base_${backbone}_${pretrained}_${projection_dim}_run0/best.pkl
 
 # step1
