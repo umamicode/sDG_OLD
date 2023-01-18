@@ -12,8 +12,8 @@ The code for **Causal Matching for Single Domain Generalization**.
 
 
 # Train
-- First, run the command `sh run_base.sh 0 0`. The command will train the base network.
-- Then, run the command `sh run_my.sh 0 0`. The command will train the sDG model.
+- First, run the command `sh {$data}_base.sh 0 0`. The command will train the base network.
+- Then, run the command `sh {$data}.sh 0 0`. The command will train the sDG model.
 - FYI: sh run_base.sh a b; a= gpu_id, b= run_id
 
 # Experiment 
@@ -21,14 +21,13 @@ The code for **Causal Matching for Single Domain Generalization**.
 - Digit Experiment: MNIST -> MNIST,MNIST-M,USPS,SVHN,SYNDIGIT
 - Available Models: Custom MnistNet, Resnet18, Resnet50
 
-## Image Experiment
+## CIFAR10-C Experiment
 - Image Experiment: CIFAR10 -> CIFAR10,CIFAR10-c,CIFAR10_1
-- Available Models: Resnet18, Resnet50
+- Available Models: Resnet18, Resnet50, WideResnet
 
 ## PACS Experiment 
-- [WORK IN PROGRESS]
 - PACS Experiment: P -> A,C,S
-- Available Models: Resnet18, Resnet50
+- Available Models: Resnet18, Resnet50, WideResnet
 
 # Environment
 - All environment is saved in sdg.yaml.
