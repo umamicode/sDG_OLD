@@ -141,8 +141,10 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
             n_features = encoder.fc.in_features
             output_dim= 7
             cls_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
-            cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
-            #cls_opt = optim.SGD(cls_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)
+            if optimizer == 'adam':
+                cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
+            elif optimizer == 'sgd':
+                cls_opt = optim.SGD(cls_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)
         elif backbone in ['pacs_net']:
             output_dim= 7
             cls_net= pacs_net.ConvNet(projection_dim=projection_dim, output_dim=output_dim).cuda()
@@ -153,20 +155,30 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
         if lr_scheduler == 'cosine':
             scheduler = optim.lr_scheduler.CosineAnnealingLR(cls_opt, epochs)
 
-    elif 'synthia' in data:
+    elif data in ['officehome']:
         # Load Dataset
-        branch = data.split('_')[1]
-        trset = data_loader.load_synthia(branch)
-        trloader = DataLoader(trset, batch_size=batchsize, num_workers=8, shuffle=True)
-        teloader = DataLoader(trset, batch_size=batchsize, num_workers=8, shuffle=True)
-        imsize = [192, 320]
-        nclass = 14
-        # Load Model
-        cls_net = fcn.FCN_resnet50(nclass=nclass).cuda()
-        cls_opt = optim.Adam(cls_net.parameters(), lr=lr)#, weight_decay=1e-4) 
-        # For synthia: adding weight_decay will drop 1-2 points
+        trset = data_loader.load_officehome(split='train')
+        teset = data_loader.load_officehome(split='test')
+        trloader = DataLoader(trset, batch_size=batchsize, num_workers=8, shuffle=True, drop_last=True)
+        teloader = DataLoader(teset, batch_size=batchsize, num_workers=8, shuffle=False, drop_last= True)
+
+        if backbone == 'custom':
+            raise ValueError('WORK IN PROGRESS: PLEASE USE Resnet-18/50 For Office-Home')
+            
+        elif backbone in ['resnet18','resnet50','wideresnet']:
+            encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
+            n_features = encoder.fc.in_features
+            output_dim= 65
+            cls_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
+            if optimizer == 'adam':
+                cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
+            elif optimizer == 'sgd':
+                cls_opt = optim.SGD(cls_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)
+        elif backbone in ['pacs_net']:
+            raise ValueError('WORK IN PROGRESS: PLEASE USE Resnet-18/50 For Office-Home')
+
         if lr_scheduler == 'cosine':
-            scheduler = optim.lr_scheduler.CosineAnnealingLR(cls_opt, epochs*len(trloader))
+            scheduler = optim.lr_scheduler.CosineAnnealingLR(cls_opt, epochs)    
     
     
     cls_criterion = nn.CrossEntropyLoss()
@@ -207,6 +219,8 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
         elif data in ['cifar10']:
             teacc = evaluate(cls_net, teloader)
         elif data in ['pacs']:
+            teacc = evaluate(cls_net, teloader)
+        elif data in ['officehome']:
             teacc = evaluate(cls_net, teloader)
             
         if best_acc < teacc:

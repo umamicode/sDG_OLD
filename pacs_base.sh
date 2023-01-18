@@ -5,14 +5,14 @@
 # base method
 data=pacs #(mnist/cifar10/pacs)
 backbone=resnet18 #(pacs_net/resnet18/resnet50/wideresnet) 
-pretrained=True
+pretrained=False
 projection_dim=512 #(custom default:128/ cifar_net default: 128) default may also be 1024 -max (8192,16384)
-epochs=100 #default:5/100
-batchsize=16 #256 for (16,4) / 128 for (28,10)
+epochs=500 #default:5/100
+batchsize=16 #16
 
-lr=1e-4 # for pacs
+lr=1e-2 # for pacs 1e-4
 lr_scheduler=none #none/cosine
-optimizer=adam #adam/sgd
+optimizer=sgd #adam/sgd -adam best
 # Base Model Path
 svroot=saved-model/${data}/base_${backbone}_${pretrained}_${projection_dim}_run${2} 
 

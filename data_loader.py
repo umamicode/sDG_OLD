@@ -418,7 +418,88 @@ def load_pacs_acs(split='art', translate=None, twox=False, ntr=None, autoaug=Non
         dataset = TensorDataset(x, y)
         return dataset
 
+def load_officehome(split='train', translate=None, twox=False, ntr=None, autoaug=None, channels=3):
+    DIR_REALWORLD = './data/office_home/Real World'
+    trainpath= 'data/officehome-train.pkl'
+    testpath= 'data/officehome-test.pkl'
+    path = f'data/officehome-{split}.pkl'
+    officehome_convertor= {'train':trainpath, 'test':testpath}
+    officehome_transforms_train= transforms.Compose([transforms.CenterCrop(224),transforms.Resize((224,224)),transforms.ToTensor()]) #224,224
+    if not os.path.exists(path):
+        
+        dataset= ImageFolder(DIR_REALWORLD, transform=officehome_transforms_train)
+        
+        train_size = int(0.7 * len(dataset))
+        test_size = len(dataset) - train_size
+        train_set, test_set = random_split(dataset, [train_size, test_size])
+        
+        #Train Set
+        train_loader = torch.utils.data.DataLoader(train_set,batch_size=train_size,drop_last=True)
+        x, y= next(iter(train_loader))
+        x= torch.tensor(x)
+        y = torch.tensor(y)
+        with open(trainpath, 'wb') as f:
+            pickle.dump([x, y], f)
+        
+        #Test Set
+        test_loader = torch.utils.data.DataLoader(test_set,batch_size=test_size,drop_last=True, shuffle=True)
+        x, y= next(iter(test_loader))
+        x= torch.tensor(x)
+        y = torch.tensor(y)
+        with open(testpath, 'wb') as f:
+            pickle.dump([x, y], f) 
 
+    with open(path, 'rb') as f:
+        x, y = pickle.load(f)
+        if channels == 1:
+            x = x[:,0:1,:,:]
+    
+    if ntr is not None:
+        x, y = x[0:ntr], y[0:ntr]
+    
+    # Without Data Augmentation
+    if (translate is None) and (autoaug is None):
+        dataset = TensorDataset(x, y)
+        return dataset
+    
+def load_officehome_domain(domain='Product', translate=None, twox=False, ntr=None, autoaug=None, channels=3):
+    DATASETS_NAMES = ['Art', 'Clipart', 'Product', 'Real World']
+    DIR_Art = './data/office_home/Art'
+    DIR_Clipart = './data/office_home/Clipart'
+    DIR_Product = './data/office_home/Product'
+    DIR_REALWORLD = './data/office_home/Real World'
+
+    path = f'data/officehome-{domain}.pkl'
+    #trainpath= 'data/officehome-train.pkl'
+    #testpath= 'data/officehome-test.pkl'
+
+    officehome_convertor= {'Art':DIR_Art, 'Clipart':DIR_Clipart,'Product':DIR_Product,'Real World':DIR_REALWORLD}
+    officehome_transforms_train= transforms.Compose([transforms.CenterCrop(224),transforms.Resize((224,224)),transforms.ToTensor()]) #224,224
+    if not os.path.exists(path):
+        
+        dataset= ImageFolder(officehome_convertor[domain], transform=officehome_transforms_train)
+        test_size = len(dataset)
+
+        #Test Set
+        test_loader = torch.utils.data.DataLoader(dataset,batch_size=test_size)
+        x, y= next(iter(test_loader))
+        x= torch.tensor(x)
+        y = torch.tensor(y)
+        with open(path, 'wb') as f:
+            pickle.dump([x, y], f)
+
+    with open(path, 'rb') as f:
+        x, y = pickle.load(f)
+        if channels == 1:
+            x = x[:,0:1,:,:]
+    
+    if ntr is not None:
+        x, y = x[0:ntr], y[0:ntr]
+    
+    # Without Data Augmentation
+    if (translate is None) and (autoaug is None):
+        dataset = TensorDataset(x, y)
+        return dataset
 
 if __name__=='__main__':
     dataset = load_mnist(split='train')

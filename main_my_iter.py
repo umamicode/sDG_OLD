@@ -499,7 +499,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         
         
         # Test the generalization effect of the i_tgt model - (run1)
-        '''
+        
         from main_test import evaluate_digit, evaluate_image, evaluate_pacs
         
         if data == 'mnist':
@@ -507,11 +507,11 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             evaluate_digit(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained, projection_dim= projection_dim) #Pretrained set as False, it will load our model instead.
         elif data == 'cifar10':
             pklpath = f'{svroot}/{i_tgt}-best.pkl'
-            evaluate_image(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained, projection_dim= projection_dim)
+            evaluate_image(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained, projection_dim= projection_dim, c_level= 5)
         elif data == 'pacs':
             pklpath = f'{svroot}/{i_tgt}-best.pkl'
             evaluate_pacs(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained, projection_dim= projection_dim)
-        '''
+        
     writer.close()
 
 if __name__=='__main__':
