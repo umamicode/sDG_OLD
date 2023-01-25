@@ -5,12 +5,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import itertools
 
-class BarlowTwinsLoss(nn.Module):
-    """Supervised Contrastive Learning with BarlowTwins.
-    It also supports the unsupervised contrastive loss in BarlowTwins"""
-    def __init__(self, projection_dim, lmda=0.051, temperature=0.07, contrast_mode='all',
+class MdarHybridLoss(nn.Module):
+    """ Contrastive Learning with MdarLoss."""
+    def __init__(self, projection_dim, lmda=0.051,lmda_task= 0.0051, temperature=0.07, contrast_mode='all',
                  base_temperature=0.07, device=None):
-        super(BarlowTwinsLoss, self).__init__()
+        super(MdarHybridLoss, self).__init__()
         self.temperature = temperature
         self.contrast_mode = contrast_mode
         self.base_temperature = base_temperature
@@ -18,11 +17,11 @@ class BarlowTwinsLoss(nn.Module):
         self.penalty= projection_dim/128 #normalized loss
         self.device=device
         self.lmda= lmda
+        self.lmda_task= lmda_task
 
     def forward(self, features, labels=None, mask=None, adv=False, standardize = True):
-        """Compute loss for model. If both `labels` and `mask` are None,
-        it degenerates to self-supervised BarlowTwins loss:
-        https://arxiv.org/pdf/2103.03230v3.pdf
+        """ 
+        [MdarLoss]
 
         Args:
             features: hidden vector of shape [bsz, n_views, ...].
@@ -66,7 +65,7 @@ class BarlowTwinsLoss(nn.Module):
             mask = mask.float().to(device)
         
         
-        #BARLOW TWINS
+        #MdarLoss
         #Many2Many redundancy reduction 
         #Reference: https://github.com/facebookresearch/barlowtwins/blob/main/main.py
         
@@ -90,7 +89,6 @@ class BarlowTwinsLoss(nn.Module):
                 off_diag /= (self.penalty * (self.penalty -1))
             #OG ADV LOSS (NE PAS TOUCHER) -lmda test results: 0.051 optimal
             loss = on_diag + self.lmda * off_diag #satur/run0
-            #print("ADV: on_diag:{a}, off_diag:{b}".format(a=on_diag,b=off_diag))
             
             
             #Candidates
@@ -123,8 +121,7 @@ class BarlowTwinsLoss(nn.Module):
                         if self.projection_dim != 128:
                             on_diag /= (self.penalty)
                             off_diag /= (self.penalty * (self.penalty -1))
-                        loss = on_diag + 0.0051 * off_diag
-                        #print("on_diag:{a}, off_diag:{b}".format(a=on_diag,b=off_diag))
+                        loss = on_diag + self.lmda_task * off_diag
                         
                         total_loss += loss
             loss = total_loss / (len(anchor_contrast_feature)**2) #og

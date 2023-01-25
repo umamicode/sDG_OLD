@@ -424,7 +424,7 @@ def load_officehome(split='train', translate=None, twox=False, ntr=None, autoaug
     testpath= 'data/officehome-test.pkl'
     path = f'data/officehome-{split}.pkl'
     officehome_convertor= {'train':trainpath, 'test':testpath}
-    officehome_transforms_train= transforms.Compose([transforms.CenterCrop(224),transforms.Resize((224,224)),transforms.ToTensor()]) #224,224
+    officehome_transforms_train= transforms.Compose([transforms.Resize((224,224)),transforms.CenterCrop(224),transforms.ToTensor()]) #224,224
     if not os.path.exists(path):
         
         dataset= ImageFolder(DIR_REALWORLD, transform=officehome_transforms_train)
@@ -474,7 +474,7 @@ def load_officehome_domain(domain='Product', translate=None, twox=False, ntr=Non
     #testpath= 'data/officehome-test.pkl'
 
     officehome_convertor= {'Art':DIR_Art, 'Clipart':DIR_Clipart,'Product':DIR_Product,'Real World':DIR_REALWORLD}
-    officehome_transforms_train= transforms.Compose([transforms.CenterCrop(224),transforms.Resize((224,224)),transforms.ToTensor()]) #224,224
+    officehome_transforms_train= transforms.Compose([transforms.Resize((224,224)),transforms.CenterCrop(224),transforms.ToTensor()]) #224,224
     if not os.path.exists(path):
         
         dataset= ImageFolder(officehome_convertor[domain], transform=officehome_transforms_train)

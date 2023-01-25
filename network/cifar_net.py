@@ -116,7 +116,7 @@ class ConvNet(nn.Module):
         
         #added 
         #self, depth, num_classes, widen_factor=1, dropRate=0.0)
-        self.encoder= WideResNet(depth=16, num_classes= output_dim, widen_factor=8, dropRate=0.3) 
+        self.encoder= WideResNet(depth=16, num_classes= output_dim, widen_factor=4, dropRate=0.3) 
         self.projection_dim= projection_dim
         self.n_features= self.encoder.nChannels ##self.encoder.fc.in_features -> now
         self.output_dim= output_dim

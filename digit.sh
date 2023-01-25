@@ -14,17 +14,15 @@ n_tgt=20
 max_tgt=19
 tgt_epochs=30
 lmda=0.051 #lmda for adv-barlowtwins (0.051 best)
-
 gen=cnn
 interpolation=img
+
 oracle=False
-
-
 data=mnist #mnist/cifar10/pacs
 backbone=custom #(custom)
 pretrained=False #Only to load right base model. my_iter process is set as pretrained=False.
 projection_dim=128 #default: (mnist: 128/ cifar-10:)
-loss_fn=barlowtwins #supcon/barlowtwins/barlowquads/prism/vicreg
+loss_fn=mdar #supcon/mdar
 
 
 batchsize=128 #default:128 -> 256

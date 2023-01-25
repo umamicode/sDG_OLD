@@ -25,7 +25,7 @@ class Reshape(nn.Module):
     def forward(self, x):
         return x.view((x.size(0),)+self.shape)
 
-class cnnGenerator(nn.Module):
+class cnnGenerator(nn.Module): #added noise after breakup
     def __init__(self, n=16, kernelsize=3, imdim=3, imsize=[192, 320]):
         ''' w_ln local noise weight
         '''
@@ -45,6 +45,7 @@ class cnnGenerator(nn.Module):
         ''' x '''
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
+        #afterbreakup
         if rand:
             z = torch.randn(len(x), self.zdim).cuda()
             x = self.adain2(x, z)

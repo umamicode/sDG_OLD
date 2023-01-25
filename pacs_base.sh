@@ -5,9 +5,9 @@
 # base method
 data=pacs #(mnist/cifar10/pacs)
 backbone=resnet18 #(pacs_net/resnet18/resnet50/wideresnet) 
-pretrained=False
+pretrained=True
 projection_dim=512 #(custom default:128/ cifar_net default: 128) default may also be 1024 -max (8192,16384)
-epochs=500 #default:5/100
+epochs=200 #default:5/200
 batchsize=16 #16
 
 lr=1e-2 # for pacs 1e-4

@@ -21,7 +21,7 @@ lmda=0.051 #lmda for adv-barlowtwins (0.051 best)
 
 gen=cnn
 interpolation=img
-oracle=True
+oracle=False
 
 
 data=pacs #mnist/cifar10/pacs
