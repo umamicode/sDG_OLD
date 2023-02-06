@@ -15,7 +15,7 @@ import time
 import numpy as np
 import copy
 
-from loss_functions import SupConLoss, MdarLoss
+from loss_functions import SupConLoss, MdarLoss, kl_divergence
 from network import mnist_net, res_net, cifar_net, generator
 from network.modules import get_resnet, get_generator, freeze, unfreeze, freeze_, unfreeze_, LARS
 from tools.miro_utils import *
@@ -60,6 +60,8 @@ HOME = os.environ['HOME']
 @click.option('--oracle', type=str, default='False', help= "Oracle Model for large pretrained models")
 @click.option('--optimizer', type=str, default='adam', help= "adam/sgd")
 
+
+
 def experiment(gpu, data, ntr, gen, gen_mode, \
         n_tgt, tgt_epochs, tgt_epochs_fixg, nbatch, batchsize, lr, lr_scheduler, svroot, ckpt, \
         w_cls, w_info, w_cyc, w_div, w_oracle,lmda,lmda_task, div_thresh, w_tgt, interpolation, loss_fn, \
@@ -69,8 +71,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     print("--Loss Function: {loss_fn}".format(loss_fn= loss_fn))
     print("--Pulling Base Model from: {ckpt}".format(ckpt=ckpt))
     print("--Pushing Trained Model to: {svroot}".format(svroot=svroot))
-    
-    
+        
     zdim = 10
     os.environ['CUDA_VISIBLE_DEVICES'] = gpu
     g1root = os.path.join(svroot, 'g1')
@@ -124,12 +125,6 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
-            
-    elif data in ['mnistvis']:
-        src_net = mnist_net.ConvNetVis().cuda()
-        saved_weight = torch.load(ckpt)
-        src_net.load_state_dict(saved_weight['cls_net'])
-        src_opt = optim.Adam(src_net.parameters(), lr=lr)
     
     ###CIFAR
     elif data in ['cifar10']:
@@ -186,29 +181,36 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         con_criterion = SupConLoss()
     elif loss_fn=='mdar':
         con_criterion = MdarLoss(projection_dim, lmda= lmda,lmda_task=lmda_task)
+    
+    #kl_loss = nn.KLDivLoss(reduction="batchmean")
     ##########################################    
     #Create Oracle Model    
     if (oracle == 'True'):
-        print("--Initializing Oracle Net for Mutual Information Maximization")
+
         #Oracle Net version.1
-        
+        print("--Initializing Teacher Net for Mutual Information Maximization (From Finetuned)")
         oracle_net= copy.deepcopy(src_net)
         freeze("encoder",oracle_net)
         oracle_net= oracle_net.cuda()
         oracle_net.oracle= True
-        oracle_net.get_hook()
         
         #Oracle Net Version.2
         '''
+        print("--Initializing Teacher Net for Mutual Information Maximization (From Scratch)")
         encoder = get_resnet(backbone, pretrained='True') # Pretrained Backbone default as False - We will load our model anyway
         n_features = encoder.fc.in_features
-        output_dim = 10 
+        output_dim = output_dim #10 
         oracle_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() 
         freeze("encoder",oracle_net)
         oracle_net.oracle= True
-        oracle_net.get_hook()
         '''
-        
+        #Get Hooks (Currently only in resnet)
+        oracle_net.get_hook()
+        src_net.get_hook()
+    
+    #Mean, Variance Encoder
+    mean_encoders = None
+    var_encoders = None
     ##########################################
     # Train
     global_best_acc = 0
@@ -238,7 +240,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             src_net.train() 
             #src_net.eval()
             for i, (x, y) in enumerate(trloader):  
-                
+
                 x, y = x.cuda(), y.cuda()
         
                 # Data Augmentation
@@ -277,17 +279,35 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 
                 
                 # oracle forward
-                if (oracle == 'True'):
+                if (oracle == 'True'):                                       
                     #For Domain Alignment
-                    h_oracle= oracle_net(x,mode='encoder')#oracle
-                    h_source= src_net(x,mode='encoder')#oracle
-                
-                
+                    #h_oracle= oracle_net(x,mode='encoder')#oracle
+                    #h_source= src_net(x,mode='encoder')#oracle    
+                    
+                    #after dinner
+                    h_oracle, intermediate_oracle = oracle_net(x, mode= 'encoder_intermediate')
+                    h_source, intermediate_source = src_net(x, mode= 'encoder_intermediate')
+                    
+                    keeper= ['conv1','bn1','relu','maxpool','layer1','layer2','layer3','layer4']
+                    intermediate_oracle= {key: intermediate_oracle[key] for key in keeper} #F.normalize run47
+                    intermediate_source= {key: intermediate_source[key] for key in keeper} #F.normalize run47
+            
+            
+                    shapes= [list(intermediate_oracle[i].shape) for i in intermediate_oracle.keys()]
+                    intermediate_oracle= intermediate_oracle.values()
+                    intermediate_source= intermediate_source.values()
+                    
+                    #Generate Mean/Variance Encoders
+                    if not mean_encoders:
+                        mean_encoders = nn.ModuleList([MeanEncoder(shape) for shape in shapes])
+                    if not var_encoders:
+                        var_encoders = nn.ModuleList([VarianceEncoder(shape) for shape in shapes])
+                    
+                    
                 
                 if len(g1_list)>0: # if generator exists
                     p2_src, z2_src = src_net(x2_src, mode='train') #z2- torch.Size([128, 128])
                     p3_mix, z3_mix = src_net(x3_mix, mode='train') #z3- torch.Size([128, 128])
-                    
                     
                     zsrc = torch.cat([z1_src.unsqueeze(1), z2_src.unsqueeze(1), z3_mix.unsqueeze(1)], dim=1) #OG
                     
@@ -308,16 +328,26 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 #oracle
                 if (oracle == 'True'):
                     #oracle_tensors are not normalized (dim=1).
-                    oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_source.unsqueeze(1)], dim=1)
-                    oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True) #standardize true showed better results
+                    #oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_source.unsqueeze(1)], dim=1)
+                    #oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True) #standardize true showed better results
                     
+                    oracle_loss= 0.0
+                    #og oracle
+                    for f, pre_f, mean_enc, var_enc in zip_strict(intermediate_source,intermediate_oracle,mean_encoders,var_encoders):
+                        mean= mean_enc(f) 
+                        var= var_enc(f).cuda() #idk why but not in gpu
+                        vlb= (mean - pre_f).pow(2).div(var) + var.log()
+                        oracle_loss += vlb.mean()/ 2.
                     
+                
                 #Source Task Model Loss
                 loss = src_cls_loss + w_tgt*tgt_cls_loss + w_tgt*con_loss  #og
                 
                 #Oracle Loss 
                 if (oracle == 'True'):
                     loss += (w_oracle* oracle_loss)
+                elif (oracle == 'False'):
+                    oracle_loss= torch.tensor(0)
                 
                 src_opt.zero_grad()
                 if flag_fixG:
@@ -377,8 +407,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 if lr_scheduler in ['cosine']:
                     scheduler.step()
                
-                loss_list.append([src_cls_loss.item(), tgt_cls_loss.item(), con_loss.item(), con_loss_adv.item(), div_loss.item(), cyc_loss.item()])
-            src_cls_loss, tgt_cls_loss, con_loss, con_loss_adv, div_loss, cyc_loss = np.mean(loss_list, 0)
+                loss_list.append([src_cls_loss.item(), tgt_cls_loss.item(), con_loss.item(), con_loss_adv.item(), div_loss.item(), cyc_loss.item(), oracle_loss.item()])
+            src_cls_loss, tgt_cls_loss, con_loss, con_loss_adv, div_loss, cyc_loss, oracle_loss = np.mean(loss_list, 0)
             
             # Test
             src_net.eval()
@@ -398,14 +428,16 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             t2 = time.time()
 
             # Save Log for Tensorboard
-            print(f'epoch {epoch}, time {t2-t1:.2f}, src_cls {src_cls_loss:.4f} tgt_cls {tgt_cls_loss:.4f} con {con_loss:.4f} con_adv {con_loss_adv:.4f} div {div_loss:.4f} cyc {cyc_loss:.4f} /// teacc {teacc:2.2f}')
+            print(f'epoch {epoch}, time {t2-t1:.2f}, src_cls {src_cls_loss:.4f} tgt_cls {tgt_cls_loss:.4f} con {con_loss:.4f} con_adv {con_loss_adv:.4f} div {div_loss:.4f} cyc {cyc_loss:.4f} oracle {oracle_loss:.4f} /// teacc {teacc:2.2f}')
             writer.add_scalar('scalar/src_cls_loss', src_cls_loss, i_tgt*tgt_epochs+epoch)
             writer.add_scalar('scalar/tgt_cls_loss', tgt_cls_loss, i_tgt*tgt_epochs+epoch)
             writer.add_scalar('scalar/con_loss', con_loss, i_tgt*tgt_epochs+epoch)
             writer.add_scalar('scalar/con_loss_adv', con_loss_adv, i_tgt*tgt_epochs+epoch)
             writer.add_scalar('scalar/div_loss', div_loss, i_tgt*tgt_epochs+epoch)
             writer.add_scalar('scalar/cyc_loss', cyc_loss, i_tgt*tgt_epochs+epoch)
+            writer.add_scalar('scalar/oracle_loss', oracle_loss, i_tgt*tgt_epochs+epoch)
             writer.add_scalar('scalar/teacc', teacc, i_tgt*tgt_epochs+epoch)
+            
             
             g1_all = g1_list + [g1_net]
             x = x[0:10]
@@ -440,7 +472,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         
         
         # Test the generalization effect of the i_tgt model - (run1)
-        
+
         from main_test import evaluate_digit, evaluate_image, evaluate_pacs, evaluate_officehome
         
         if data == 'mnist':

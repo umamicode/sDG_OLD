@@ -9,20 +9,17 @@ from torchvision.utils import make_grid
 import torchvision.transforms as transforms
 from tensorboardX import SummaryWriter
 
-#[TODO]
-from network.modules import get_resnet, freeze_
-from network.modules.transformations import TransformsRelic
-from network.modules.sync_batchnorm import convert_model
-
-
 import os
 import click
 import time
 import numpy as np
 import copy
 
-from con_losses import SupConLoss, ReLICLoss, BarlowTwinsLoss
-from network import mnist_net,res_net, generator
+from loss_functions import SupConLoss, MdarLoss, kl_divergence
+from network import mnist_net, res_net, cifar_net, generator
+from network.modules import get_resnet, get_generator, freeze, unfreeze, freeze_, unfreeze_, LARS
+from tools.miro_utils import *
+from tools.farmer import *
 import data_loader
 from main_base import evaluate
 
@@ -42,33 +39,38 @@ HOME = os.environ['HOME']
 @click.option('--tgt_epochs_fixg', type=int, default=None, help='When the epoch is greater than this value, G fix is ​​removed')
 @click.option('--nbatch', type=int, default=None, help='How many batches are included in each epoch')
 @click.option('--batchsize', type=int, default=256)
-@click.option('--lr', type=float, default=1e-3)
+@click.option('--lr', type=float, default=1e-3, help='Learning Rate: Default 1e-4 in Our Experiment')
 @click.option('--lr_scheduler', type=str, default='none', help='Whether to choose a learning rate decay strategy')
 @click.option('--svroot', type=str, default='./saved')
 @click.option('--ckpt', type=str, default='./saved/best.pkl')
 @click.option('--w_cls', type=float, default=1.0, help='cls item weight')
-@click.option('--w_info', type=float, default=1.0, help='infomin item weights')
-@click.option('--w_cyc', type=float, default=10.0, help='cycleloss item weight')
-@click.option('--w_div', type=float, default=1.0, help='Polymorphism loss weight')
-@click.option('--div_thresh', type=float, default=0.1, help='div_loss threshold')
+@click.option('--w_info', type=float, default=0.1, help='infomin item weights')
+@click.option('--w_cyc', type=float, default=20.0, help='cycleloss item weight')
+@click.option('--w_div', type=float, default=2.0, help='Polymorphism loss weight')
+@click.option('--w_oracle', type=float, default=1.0, help='Oracle loss Weight')
+@click.option('--lmda', type=float, default=0.051, help='Lambda for Adversarial BT')
+@click.option('--lmda_task', type=float, default=0.0051, help='Lambda for Adversarial BT')
+@click.option('--div_thresh', type=float, default=0.5, help='div_loss threshold')
 @click.option('--w_tgt', type=float, default=1.0, help='target domain sample update tasknet intensity control')
 @click.option('--interpolation', type=str, default='pixel', help='Interpolate between the source domain and the generated domain to get a new domain, two ways：img/pixel')
-@click.option('--loss_fn', type=str, default='supcon', help= 'Loss Functions (supcon/relic/barlowtwins')
+@click.option('--loss_fn', type=str, default='supcon', help= 'Loss Functions (supcon/mdar')
 @click.option('--backbone', type=str, default= 'custom', help= 'Backbone Model (custom/resnet18,resnet50,wideresnet')
 @click.option('--pretrained', type=str, default= 'False', help= 'Pretrained Backbone - ResNet18/50, Custom MNISTnet does not matter')
 @click.option('--projection_dim', type=int, default=128, help= "Projection Dimension of the representation vector for Resnet; Default: 128")
-
+@click.option('--oracle', type=str, default='False', help= "Oracle Model for large pretrained models")
+@click.option('--optimizer', type=str, default='adam', help= "adam/sgd")
 
 def experiment(gpu, data, ntr, gen, gen_mode, \
         n_tgt, tgt_epochs, tgt_epochs_fixg, nbatch, batchsize, lr, lr_scheduler, svroot, ckpt, \
-        w_cls, w_info, w_cyc, w_div, div_thresh, w_tgt, interpolation, loss_fn, backbone, pretrained, projection_dim):
+        w_cls, w_info, w_cyc, w_div, w_oracle,lmda,lmda_task, div_thresh, w_tgt, interpolation, loss_fn, \
+        backbone, pretrained, projection_dim, oracle, optimizer):
     settings = locals().copy()
     print(settings)
     print("--Loss Function: {loss_fn}".format(loss_fn= loss_fn))
-    print("--Using Base Model from: {ckpt}".format(ckpt=ckpt))
-    print("--Trained Model savepath: {svroot}".format(svroot=svroot))
+    print("--Pulling Base Model from: {ckpt}".format(ckpt=ckpt))
+    print("--Pushing Trained Model to: {svroot}".format(svroot=svroot))
     
-    # Global Settings
+    
     zdim = 10
     os.environ['CUDA_VISIBLE_DEVICES'] = gpu
     g1root = os.path.join(svroot, 'g1')
@@ -93,35 +95,21 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     elif data in ['pacs']:
         trset = data_loader.load_pacs(split='train')
         teset = data_loader.load_pacs(split='test')
-        imsize = [32, 32] #image size is (224,224)
+        imsize = [224,224]#[32, 32] 
+    elif data in ['officehome']:
+        trset = data_loader.load_officehome(split='train')
+        teset = data_loader.load_officehome(split='test')
+        imsize = [224,224]#[32, 32] 
 
-    print("Training With {data} data".format(data=data))
+    print("--Training With {data} data".format(data=data))
     trloader = DataLoader(trset, batch_size=batchsize, num_workers=8, \
-                sampler=RandomSampler(trset, True, nbatch*batchsize))
-    teloader = DataLoader(teset, batch_size=batchsize, num_workers=8, shuffle=False, drop_last=True) #added this for pacs
+                sampler=RandomSampler(trset, True, nbatch*batchsize))  #WADDUP DUDE 0105 midnight (nbatch*batchsize -> len(trset)) - @ image_randomsampler/ -nope. (bad result)
+    teloader = DataLoader(teset, batch_size=batchsize, num_workers=8, shuffle=True, drop_last=True) 
     
-    # load model
-    def get_generator(name):  #[TODO]maybe not gen but name?
-        if name=='cnn':
-            g1_net = generator.cnnGenerator(imdim=imdim, imsize=imsize).cuda()
-            g2_net = generator.cnnGenerator(imdim=imdim, imsize=imsize).cuda()
-            g1_opt = optim.Adam(g1_net.parameters(), lr=lr)
-            g2_opt = optim.Adam(g2_net.parameters(), lr=lr)
-        elif gen=='hr':
-            1/0
-            g1_net = hrnet.HRGenerator(zdim=zdim).cuda()
-            g2_net = hrnet.HRGenerator(zdim=zdim).cuda()
-            g1_opt = optim.Adam(g1_net.parameters(), lr=lr)
-            g2_opt = optim.Adam(g2_net.parameters(), lr=lr)
-        elif gen=='stn':
-            g1_net = generator.stnGenerator(zdim=zdim, mode=gen_mode).cuda()
-            g2_net = None
-            g1_opt = optim.Adam(g1_net.parameters(), lr=lr/2)
-            g2_opt = None
-        return g1_net, g2_net, g1_opt, g2_opt
-
+    # Load model
     g1_list = []
-    ### Load Model ([TODO]- Add Mutual Information Regularization Method for Pretrained Models)
+    ### Load Task Model
+    ###MNIST
     if data in ['mnist', 'mnist_t']:
         if backbone == 'custom':
             src_net = mnist_net.ConvNet(projection_dim).cuda()
@@ -131,95 +119,131 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         elif backbone in ['resnet18','resnet50','wideresnet']:
             encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as False - We will load our model anyway
             n_features = encoder.fc.in_features
-            output_dim = 10 #{TODO}- output
-            src_net= res_net.ConvNet(encoder, projection_dim, n_features,output_dim).cuda() #projection_dim/ n_features/output_dim=10
+            output_dim = 10 
+            src_net= res_net.ConvNet(encoder, projection_dim, n_features,output_dim).cuda() 
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
-        
+            
     elif data in ['mnistvis']:
         src_net = mnist_net.ConvNetVis().cuda()
         saved_weight = torch.load(ckpt)
         src_net.load_state_dict(saved_weight['cls_net'])
         src_opt = optim.Adam(src_net.parameters(), lr=lr)
     
+    ###CIFAR
     elif data in ['cifar10']:
         if backbone == 'custom':
             #NOT RECOMMENDED: CIFAR10 experiment was designed for Resnet Models
-            raise ValueError('WORK IN PROGRESS: PLEASE USE Resnet-18/50 For CIFAR10')
-            src_net = mnist_net.ConvNet(projection_dim).cuda()
-            saved_weight = torch.load(ckpt)
-            src_net.load_state_dict(saved_weight['cls_net'])
-            src_opt = optim.Adam(src_net.parameters(), lr=lr)
+            raise ValueError('PLEASE USE Resnet-18/50 For CIFAR10')
         elif backbone in ['resnet18','resnet50','wideresnet']:
             encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as False - We will load our model anyway
             n_features = encoder.fc.in_features
-            output_dim = 10 #{TODO}- output - cifar10
+            output_dim = 10 
             src_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features/output_dim=10
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
-            src_opt = optim.Adam(src_net.parameters(), lr=lr)
-            
+            if optimizer == 'adam':
+                src_opt = optim.Adam(src_net.parameters(), lr=lr)
+            elif optimizer == 'sgd':
+                src_opt = optim.SGD(src_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=1e-1)
+        elif backbone in ['cifar_net']:
+            output_dim= 10
+            src_net= cifar_net.ConvNet(projection_dim=projection_dim, output_dim=output_dim).cuda()
+            saved_weight = torch.load(ckpt)
+            src_net.load_state_dict(saved_weight['cls_net'])
+            if optimizer == 'adam':
+                src_opt = optim.Adam(src_net.parameters(), lr=lr)
+            elif optimizer == 'sgd':
+                src_opt = optim.SGD(src_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)     
+    #PACS
     elif data in ['pacs']:
         if backbone == 'custom':
             #NOT RECOMMENDED: PACS experiment was designed for Resnet Models
-            raise ValueError('WORK IN PROGRESS: PLEASE USE Resnet-18/50 For PACS')
-            # [Incomplete Codes]
-            # src_net = mnist_net.ConvNet(projection_dim).cuda()
-            #src_net.load_state_dict(saved_weight['cls_net'])
-            #src_opt = optim.Adam(src_net.parameters(), lr=lr)
+            raise ValueError('PLEASE USE Resnet-18/50/AlexNet For PACS')
         elif backbone in ['resnet18','resnet50','wideresnet']:
             encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
             n_features = encoder.fc.in_features
             output_dim= 7
-            src_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features/output_dim=10
+            src_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() 
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
-        
+    #OfficeHome
+    elif data in ['officehome']:
+        if backbone in ['resnet18','resnet50','wideresnet']:
+            encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
+            n_features = encoder.fc.in_features
+            output_dim= 65
+            src_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() 
+            saved_weight = torch.load(ckpt)
+            src_net.load_state_dict(saved_weight['cls_net'])
+            src_opt = optim.Adam(src_net.parameters(), lr=lr)
+
     cls_criterion = nn.CrossEntropyLoss()
-    ##########################################
-    #[TODO]- Add ReLIC LOSS (221112)
+    
     if loss_fn=='supcon':
         con_criterion = SupConLoss()
-    elif loss_fn=='relic':
-        con_criterion = ReLICLoss()
-    elif loss_fn=='barlowtwins':
-        con_criterion = BarlowTwinsLoss(projection_dim)
+    elif loss_fn=='mdar':
+        con_criterion = MdarLoss(projection_dim, lmda= lmda,lmda_task=lmda_task)
     ##########################################    
-    #Create Oracle Model
-    #src_net_copy= copy.deepcopy(src_net)
-   
+    #Create Oracle Model    
+    if (oracle == 'True'):
+        print("--Initializing Oracle Net for Mutual Information Maximization")
+        #Oracle Net version.1
+        
+        oracle_net= copy.deepcopy(src_net)
+        freeze("encoder",oracle_net)
+        oracle_net= oracle_net.cuda()
+        oracle_net.oracle= True
+        #oracle_net.get_hook()
+        
+        #Oracle Net Version.2
+        '''
+        encoder = get_resnet(backbone, pretrained='True') # Pretrained Backbone default as False - We will load our model anyway
+        n_features = encoder.fc.in_features
+        output_dim = 10 
+        oracle_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() 
+        freeze("encoder",oracle_net)
+        oracle_net.oracle= True
+        oracle_net.get_hook()
+        '''
+        
     ##########################################
     # Train
     global_best_acc = 0
     for i_tgt in range(n_tgt):
         print(f'target domain {i_tgt}/{n_tgt}')
 
-        ####################### Learning ith target generator
+        #ith target generator train sequence
         if lr_scheduler == 'cosine':
-            scheduler = optim.lr_scheduler.CosineAnnealingLR(src_opt, tgt_epochs*len(trloader))
-        g1_net, g2_net, g1_opt, g2_opt = get_generator(gen)
+            scheduler = optim.lr_scheduler.CosineAnnealingLR(src_opt, tgt_epochs*len(trloader)) #(https://discuss.pytorch.org/t/cosineannealinglr-step-size-t-max/104687/)
+        elif lr_scheduler == 'linear':
+            scheduler = optim.lr_scheduler.LinearLR(src_opt, tgt_epochs)
+        
+        
+        g1_net, g2_net, g1_opt, g2_opt = get_generator(gen, imdim=imdim, imsize= imsize, lr= lr) #get_generator(gen)
         best_acc = 0
         for epoch in range(tgt_epochs):
             t1 = time.time()
             
-            # if flag_fixG = False, locking G
-            #      flag_fixG = True, renew G
+            # if flag_fixG = False, locking G / flag_fixG = True, renew G
             flag_fixG = False
             if (tgt_epochs_fixg is not None) and (epoch >= tgt_epochs_fixg):
                 flag_fixG = True
             loss_list = []
             time_list = []
-            #src_net.train()
-            src_net.eval()
+            
+            
+            src_net.train() 
+            #src_net.eval()
             for i, (x, y) in enumerate(trloader):  
+                
                 x, y = x.cuda(), y.cuda()
         
                 # Data Augmentation
                 if len(g1_list)>0: # if generator exists (not zero in g1_list)
                     idx = np.random.randint(0, len(g1_list))
-                    #rand = torch.randn(len(x), zdim).cuda()
                     if gen in ['hr', 'cnn']:
                         with torch.no_grad():
                             x2_src = g1_list[idx](x, rand=True)  #generated image
@@ -239,8 +263,6 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                             x3_mix = F.grid_sample(x, grid)
 
                 # Synthesize new data
-                #rand = torch.randn(len(x), zdim).cuda()
-                #rand2 = torch.randn(len(x), zdim).cuda()
                 if gen in ['cnn', 'hr']:
                     x_tgt = g1_net(x, rand=True)
                     x2_tgt = g1_net(x, rand=True)
@@ -248,45 +270,76 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 elif gen == 'stn':
                     x_tgt, H_tgt = g1_net(x, rand=True, return_H=True)
                     x2_tgt, H2_tgt = g1_net(x, rand=True, return_H=True)
-                
-                
+
 
                 # forward
                 p1_src, z1_src = src_net(x, mode='train') #z1- torch.Size([128, 128])
+                
+                
+                # oracle forward
+                if (oracle == 'True'):
+                    #For Domain Alignment
+                    h_oracle= oracle_net(x,mode='encoder')#oracle
+                    h_source= src_net(x,mode='encoder')#oracle
+                
+                
+                
                 if len(g1_list)>0: # if generator exists
                     p2_src, z2_src = src_net(x2_src, mode='train') #z2- torch.Size([128, 128])
                     p3_mix, z3_mix = src_net(x3_mix, mode='train') #z3- torch.Size([128, 128])
-                    zsrc = torch.cat([z1_src.unsqueeze(1), z2_src.unsqueeze(1), z3_mix.unsqueeze(1)], dim=1) #zsrc- torch.Size([128, 3, 128])
                     
-                    #src_cls_loss = cls_criterion(p1_src, y) + cls_criterion(p2_src, y) + cls_criterion(p3_mix, y)
-                    src_cls_loss = cls_criterion(p1_src, y) + cls_criterion(p2_src, y) + cls_criterion(p3_mix, y)  #{TODO} GreatCloneDetach GCD
+                    
+                    zsrc = torch.cat([z1_src.unsqueeze(1), z2_src.unsqueeze(1), z3_mix.unsqueeze(1)], dim=1) #OG
+                    
+                    src_cls_loss = cls_criterion(p1_src, y) + cls_criterion(p2_src, y) + cls_criterion(p3_mix, y)  #GreatCloneDetach GCD
 
                 else:
-                    zsrc = z1_src.unsqueeze(1)   #[TODO] Tried This and worked
-                    #src_cls_loss = cls_criterion(p1_src, y) #[TODO] GCD                    
-                    src_cls_loss = cls_criterion(p1_src, y) #[TODO] GCD
+                    zsrc = z1_src.unsqueeze(1)                       
+                    src_cls_loss = cls_criterion(p1_src, y) #GCD
 
                 p_tgt, z_tgt = src_net(x_tgt, mode='train')
-                #tgt_cls_loss = cls_criterion(p_tgt, y) #[TODO] GCD
-                tgt_cls_loss = cls_criterion(p_tgt.clone().detach(), y) #[TODO] GCD
+                tgt_cls_loss = cls_criterion(p_tgt, y) #[TODO] GCD
+                                
                 
-                ##[Scenario 1]
-                ######TODO[Change ORDER G & F]
-                #Scenario 1 Starts Here
-                #''' #Push to Close
+                # SRC-NET UPDATE
+                zall = torch.cat([z_tgt.unsqueeze(1), zsrc], dim=1) #OG
+                con_loss = con_criterion(zall, adv=False)
                 
-                ##[TODO]- G(G1/2_opt): CHANGE ORDER WITH F###
-                # update g1_net
+                #oracle
+                if (oracle == 'True'):
+                    #oracle_tensors are not normalized (dim=1).
+                    oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_source.unsqueeze(1)], dim=1)
+                    oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True) #standardize true showed better results
+                    
+                    
+                    
+                #Source Task Model Loss
+                loss = src_cls_loss + w_tgt*tgt_cls_loss + w_tgt*con_loss  #og
+                
+                #Oracle Loss 
+                if (oracle == 'True'):
+                    loss += (w_oracle* oracle_loss)
+                
+                src_opt.zero_grad()
+                if flag_fixG:
+                    loss.backward() #og
+                else:
+                    loss.backward(retain_graph=True) #og
+                
+                
+                # G1-NET UPDATE
                 if flag_fixG:
                     # fix G，training only tasknet
                     con_loss_adv = torch.tensor(0)
                     div_loss = torch.tensor(0)
                     cyc_loss = torch.tensor(0)
+                    #Update Source Net (RUN1)
+                    src_opt.step() 
+                
                 else:
                     idx = np.random.randint(0, zsrc.size(1))
                     zall = torch.cat([z_tgt.unsqueeze(1), zsrc[:,idx:idx+1].detach()], dim=1)
-                    #con_loss_adv = con_criterion(zall, adv=True) #[TODO ]GCD
-                    con_loss_adv = con_criterion(zall.clone().detach(), adv=True) #Modified 11/21/2022 - All Loss uses this code
+                    con_loss_adv = con_criterion(zall, adv=True) #[TODO]GCD 
                     
                     if gen in ['cnn', 'hr']:
                         div_loss = (x_tgt-x2_tgt).abs().mean([1,2,3]).clamp(max=div_thresh).mean() # Constraint Generator Divergence
@@ -295,48 +348,32 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     elif gen == 'stn':
                         div_loss = (H_tgt-H2_tgt).abs().mean([1,2]).clamp(max=div_thresh).mean()
                         cyc_loss = torch.tensor(0).cuda()
-                    loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss + w_info*con_loss_adv
+                    
+                    if loss_fn == 'mdar':
+                        loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss - w_info*con_loss_adv #og
+                    elif loss_fn == 'supcon':
+                        loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss + w_info*con_loss_adv
+                    '''
+                    - Error: RuntimeError: one of the variables needed for gradient computation
+                    has been modified by an inplace operation: [torch.cuda.FloatTensor [128, 128]], 
+                    which is output 0 of AsStridedBackward0, is at version 3; expected version 2 instead.
+                    - Problem: both tgt_cls_loss and con_loss_adv is causing the problem
+                    - Solution: step() at once. 
+                    '''
+                    
                     g1_opt.zero_grad()
                     if g2_opt is not None:
                         g2_opt.zero_grad()
                     loss.backward()
+                    
+                    #Update Source Net (RUN1)
+                    src_opt.step() 
                     g1_opt.step()
                     if g2_opt is not None:
                         g2_opt.step()
-
-                ###[TODO]- F(src_net): CHANGE ORDER WITH G###
-                # update src_net
-                zall = torch.cat([z_tgt.unsqueeze(1), zsrc], dim=1) #torch.Size([128, num_generated_domains, 128])
-                
-                #con_loss = con_criterion(zall, adv=False) #[TODO] GCD
-                '''
-                #The original version caused error:
-                #https://discuss.pytorch.org/t/83241
-                #Fixed by clone&detaching tensors
-                '''
-                #Modified 11/21/2022 - All loss uses this code
-                con_loss = con_criterion(zall.clone().detach(), adv=False)
-                
-                #[TODO] - Weight to ConLOSS
-                loss = src_cls_loss + w_tgt*con_loss + w_tgt*tgt_cls_loss # w_tgt default 1.0
-                src_opt.zero_grad()
-                if flag_fixG:
-                    loss.backward(retain_graph=True)
-                else:
-                    loss.backward(retain_graph=True)
-                src_opt.step()     
-
-                #Ends- Change Order (G/F)
-            
-                #Scenario 1 Ends Here
-                #''' #Uncomment to Close
-                ##############################################################################
-                ##[Scenario 2]
-                #Scenario 2 Starts Here
-                # Deleted Scenario 2 Code (Please Check ./OLD/main_my_iter_beforeclean1130.py for more info.)
-                ##Scenario 2 Ends Here
-                ##############################################################################
-
+                    
+                #src_opt.step() 
+                 
                 # update learning rate
                 if lr_scheduler in ['cosine']:
                     scheduler.step()
@@ -346,13 +383,11 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             
             # Test
             src_net.eval()
-            # mnist、cifar test process synthia is different
-            if data in ['mnist', 'mnist_t', 'mnistvis']:
-                teacc = evaluate(src_net, teloader) #{TODO} -Add evaluate_cifar10
-            elif data in ['cifar10']:
-                teacc = evaluate(src_net, teloader)
-            elif data in ['pacs']:
-                teacc = evaluate(src_net, teloader)
+            
+            # unified teacc
+            if data in ['mnist', 'mnist_t', 'mnistvis','cifar10','pacs','officehome']:
+                teacc = evaluate(src_net, teloader) 
+            
             #Save Best Model
             if best_acc < teacc:
                 best_acc = teacc
@@ -372,7 +407,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             writer.add_scalar('scalar/div_loss', div_loss, i_tgt*tgt_epochs+epoch)
             writer.add_scalar('scalar/cyc_loss', cyc_loss, i_tgt*tgt_epochs+epoch)
             writer.add_scalar('scalar/teacc', teacc, i_tgt*tgt_epochs+epoch)
-
+            
             g1_all = g1_list + [g1_net]
             x = x[0:10]
             l1 = make_grid(x, 1, 2, pad_value=128) 
@@ -389,7 +424,6 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 writer.add_image('im-gen', rst, i_tgt*tgt_epochs+epoch)
 
                 x_copy = x[0:1].repeat(16, 1, 1, 1)
-                #rand = torch.randn(16, zdim).cuda()
                 x_copy_ = g1_net(x_copy, rand=True)
                 rst = make_grid(x_copy_, 4, 2, pad_value=128)
                 writer.add_image('im-div', rst, i_tgt*tgt_epochs+epoch)
@@ -402,22 +436,29 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
 
         # Save trained G1(Generator)
         torch.save({'g1':g1_net.state_dict()}, os.path.join(g1root, f'{i_tgt}.pkl'))
+        
         g1_list.append(g1_net)
-
-        # Test the generalization effect of the i_tgt model
-        from main_test_digit import evaluate_digit, evaluate_image, evaluate_pacs
+        
+        
+        # Test the generalization effect of the i_tgt model - (run1)
+        
+        from main_test import evaluate_digit, evaluate_image, evaluate_pacs, evaluate_officehome
+        
         if data == 'mnist':
             pklpath = f'{svroot}/{i_tgt}-best.pkl'
-            #{TODO}- added backbone param
             evaluate_digit(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained, projection_dim= projection_dim) #Pretrained set as False, it will load our model instead.
         elif data == 'cifar10':
             pklpath = f'{svroot}/{i_tgt}-best.pkl'
-            evaluate_image(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained, projection_dim= projection_dim)
+            evaluate_image(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained, projection_dim= projection_dim, c_level= 5)
         elif data == 'pacs':
             pklpath = f'{svroot}/{i_tgt}-best.pkl'
             evaluate_pacs(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained, projection_dim= projection_dim)
+        elif data == 'officehome':
+            pklpath = f'{svroot}/{i_tgt}-best.pkl'
+            evaluate_officehome(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained, projection_dim= projection_dim)
     writer.close()
 
 if __name__=='__main__':
+    my_seed_everywhere()
     experiment()
 

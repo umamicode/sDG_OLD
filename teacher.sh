@@ -2,7 +2,7 @@
 # $1 gpuid
 # $2 runid
 
-# cifar10 method
+# pacs method
 w_cls=1.0
 w_cyc=20
 w_info=0.1 
@@ -11,30 +11,32 @@ w_div=2.0
 div_thresh=0.5
 w_tgt=1.0
 
-n_tgt=50 #20
-max_tgt=49 #19
+
+#how about try smaller tgt 
+n_tgt=100 #20
+max_tgt=99 #19
 tgt_epochs_fixg=5 #15
 tgt_epochs=10 #30
 lmda=0.051 #lmda for adv-barlowtwins (0.051 best)
 
 gen=cnn
 interpolation=img
-oracle=False
+oracle=True
 
 
-data=cifar10 #mnist/cifar10/pacs
-backbone=cifar_net #(cifar_net/resnet18/resnet50/wideresnet) 
-pretrained=False #Only to load right base model. my_iter process is set as pretrained=False.
+data=pacs #mnist/cifar10/pacs
+backbone=resnet18 #(pacs_net/resnet18/resnet50/wideresnet) 
+pretrained=True #Only to load right base model. my_iter process is set as pretrained=False.
 projection_dim=512 #default: (mnist: 128/ cifar-10:128)
 loss_fn=mdar #supcon/mdar
 lr=1e-4 #1e-4 #1e-3 sucks #adam with 1e-5/1e-4 #sdg with 1e-4
 lr_scheduler=none #cosine/none  #adam with none # sgd with cosine
 optimizer=adam #sgd/adam
 
-batchsize=32 #default:128 (64,128,256)
+batchsize=16 #default:16 for pacs
 
-# Model Load/Save Path 
-svroot=saved-model/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_lmda${lmda}_oracle${oracle}_${w_oracle}_lr${lr}_${lr_scheduler}_${optimizer}_run${2}
+# Model Load/Save Path
+svroot=saved-model/teacher_investigation/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_lmda${lmda}_oracle${oracle}_${w_oracle}_lr${lr}_${lr_scheduler}_${optimizer}_run${2}
 baseroot=saved-model/${data}/base_${backbone}_${pretrained}_${projection_dim}_run0/best.pkl
 
 # step1

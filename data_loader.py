@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset, TensorDataset, random_split
 from torchvision import transforms
-from torchvision.datasets import MNIST, USPS, SVHN, CIFAR10, STL10, ImageFolder
+from torchvision.datasets import MNIST, USPS, SVHN, CIFAR10, STL10, ImageNet, ImageFolder
 
 import tensorflow_datasets as tfds
 
@@ -289,16 +289,7 @@ def load_cifar10_1(split='train', translate=None, twox=False, ntr=None, autoaug=
     if not os.path.exists(path):
         dataset = tfds.as_numpy(tfds.load('cifar10_1', split= split, shuffle_files= True, batch_size= -1))
         x, y = dataset['image'], dataset['label']
-        #dataset = CIFAR10(f'{HOME}/.pytorch/CIFAR10', train=(split=='train'), download=True, transform= cifar10_transforms_train)
-        #x, y = dataset.data, dataset.targets
         
-        #Only Select First 10k images as train
-        #if split=='train':
-        #    x, y = x[0:10000], y[0:10000]
-        
-        #[TODO] - solve -> AttributeError: 'numpy.ndarray' object has no attribute 'numpy'
-        #x = torch.tensor(resize_imgs(x.numpy(), 32))
-        #x = torch.tensor(resize_imgs_dkcho(x, 32)) # x-> torch.Size([10000, 32, 32, 3])
         x= torch.tensor(x)
         x = (x.float()/255.)#.unsqueeze(1).repeat(1,3,1,1)  #<class 'torch.Tensor'>
         x= x.permute(0,3,1,2) #[batchsize,w,h,channel] -> [batchsize, channel, w,h]
@@ -501,6 +492,54 @@ def load_officehome_domain(domain='Product', translate=None, twox=False, ntr=Non
         dataset = TensorDataset(x, y)
         return dataset
 
+def load_imagenet(split='train', translate=None, twox=False, ntr=None, autoaug=None, channels=3):
+    '''
+        autoaug == 'AA', AutoAugment
+                   'FastAA', Fast AutoAugment
+                   'RA', RandAugment
+        channels == 3 return by default rgb 3 channel image
+                    1 Return a single channel image
+    '''
+    path = f'data/imagenet-{split}.pkl'
+    imagenet_transforms_train= transforms.Compose([transforms.Resize((32,32))]) #224,224
+    if not os.path.exists(path):
+        dataset = ImageNet(f'{HOME}/.pytorch/ImageNet', train=(split=='train'), download=True, transform= imagenet_transforms_train)
+        x, y = dataset.data, dataset.targets
+        x= torch.tensor(x)
+        x = (x.float()/255.)#.unsqueeze(1).repeat(1,3,1,1)  #<class 'torch.Tensor'>
+        x= x.permute(0,3,1,2) #[batchsize,w,h,channel] -> [batchsize, channel, w,h]
+        y = torch.tensor(y)
+        with open(path, 'wb') as f:
+            pickle.dump([x, y], f)
+    with open(path, 'rb') as f:
+        x, y = pickle.load(f)
+        if channels == 1:
+            x = x[:,0:1,:,:]
+    
+    if ntr is not None:
+        x, y = x[0:ntr], y[0:ntr]
+    
+    # Without Data Augmentation
+    if (translate is None) and (autoaug is None):
+        dataset = TensorDataset(x, y)
+        return dataset
+    
+    # Data Augmentation Pipeline
+    transform = [transforms.ToPILImage()]
+    if translate is not None:
+        transform.append(transforms.RandomAffine(0, [translate, translate]))
+    if autoaug is not None:
+        if autoaug == 'AA':
+            transform.append(CIFAR10Policy()) #originally SVHNPolicy()
+        elif autoaug == 'RA':
+            transform.append(RandAugment(3,4))
+    transform.append(transforms.ToTensor())
+    transform = transforms.Compose(transform)
+    dataset = myTensorDataset(x, y, transform=transform, twox=twox)
+    return dataset
+
+
+
 if __name__=='__main__':
     dataset = load_mnist(split='train')
     print('mnist train', len(dataset))
@@ -520,3 +559,5 @@ if __name__=='__main__':
     print('cifar10-c', len(dataset))
     dataset= load_pacs(split='test')
     print('pacs', len(dataset))
+    dataset= load_imagenet(split='test')
+    print('imagenet', len(dataset))

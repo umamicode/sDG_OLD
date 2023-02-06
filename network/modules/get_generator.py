@@ -6,7 +6,6 @@ def get_generator(name, imdim=3, imsize= [32,32], lr= 1e-3):
         if name=='cnn':
             #g1_noise= torch.randn(bs, zdim).cuda() #afterbreakup
             #g2_noise= torch.randn(bs, zdim).cuda() #afterbreakup
-            
             g1_net = generator.cnnGenerator(imdim=imdim, imsize=imsize).cuda()
             g2_net = generator.cnnGenerator(imdim=imdim, imsize=imsize).cuda()
             g1_opt = optim.Adam(g1_net.parameters(), lr=lr)

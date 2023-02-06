@@ -47,7 +47,9 @@ class cnnGenerator(nn.Module): #added noise after breakup
         x = F.relu(self.conv2(x))
         #afterbreakup
         if rand:
-            z = torch.randn(len(x), self.zdim).cuda()
+            z = torch.randn(len(x), self.zdim).cuda() #run1
+            #z = torch.randn(1, self.zdim).cuda() #run0
+            #z= z.repeat(len(x), 1) #run0
             x = self.adain2(x, z)
         x = F.relu(self.conv3(x))
         x = torch.sigmoid(self.conv4(x))

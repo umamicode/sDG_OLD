@@ -54,14 +54,14 @@ class ConvNet(nn.Module):
             nn.Linear(self.n_features, self.projection_dim, bias=False) #self.n_features,self.projection_dim -> self.projection_dim,self.projection_dim
         )
     
-    def get_hook(self):   
-        for i,l in enumerate(list(self.encoder._modules.keys())):
-            self.fhooks.append(getattr(self.encoder,l).register_forward_hook(self.forward_hook(l)))
+    #def get_hook(self):   
+    #    for i,l in enumerate(list(self.encoder._modules.keys())):
+    #        self.fhooks.append(getattr(self.encoder,l).register_forward_hook(self.forward_hook(l)))
         
-    def forward_hook(self,layer_name):
-        def hook(module, input, output):
-            self.selected_out[layer_name] = output
-        return hook
+    #def forward_hook(self,layer_name):
+    #    def hook(module, input, output):
+    #        self.selected_out[layer_name] = output
+    #    return hook
     
     
         
@@ -87,6 +87,4 @@ class ConvNet(nn.Module):
         elif mode == 'encoder':
             encoded = F.normalize(encoded) #this does not effect accuracy
             return encoded
-        elif mode == 'encoder_intermediate':
-            encoded = F.normalize(encoded) #this does not effect accuracy
-            return encoded, self.selected_out
+

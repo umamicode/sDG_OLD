@@ -88,3 +88,4 @@ def zip_strict(*iterables):
     first = chain(next(iterables), first_tail())
     rest = list(map(iter, iterables))
     return chain(zip(first, *rest), zip_tail())
+
