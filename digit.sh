@@ -16,7 +16,7 @@ max_tgt=99 #19
 tgt_epochs_fixg=5 #15
 tgt_epochs=10 #30
 lmda=0.051 #lmda for adv-barlowtwins (0.051 best)
-gen=cnn
+gen=cnn #cnn/stn
 interpolation=img
 
 oracle=False
@@ -30,7 +30,7 @@ loss_fn=mdar #supcon/mdar
 batchsize=128 #default:128 -> 256
 
 # Model Load/Save Path
-svroot=saved-model/digit/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_lmda${lmda}_oracle${oracle}_${w_oracle}_run${2}
+svroot=saved-model/uniform/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_lmda${lmda}_oracle${oracle}_${w_oracle}_run${2}
 baseroot=saved-model/${data}/base_${backbone}_${pretrained}_${projection_dim}_run0/best.pkl
 
 # step1

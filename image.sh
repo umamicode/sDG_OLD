@@ -11,8 +11,8 @@ w_div=2.0
 div_thresh=0.5
 w_tgt=1.0
 
-n_tgt=50 #20
-max_tgt=49 #19
+n_tgt=100 #20
+max_tgt=99 #19
 tgt_epochs_fixg=5 #15
 tgt_epochs=10 #30
 lmda=0.051 #lmda for adv-barlowtwins (0.051 best)

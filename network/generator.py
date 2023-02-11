@@ -8,8 +8,8 @@ from network.modules.batchinstance_norm import BatchInstanceNorm2d
 class AdaIN2d(nn.Module):
     def __init__(self, style_dim, num_features):
         super().__init__()
-        self.norm = nn.InstanceNorm2d(num_features, affine=False)  
-        #self.norm = BatchInstanceNorm2d(num_features, affine = True)
+        #self.norm = nn.InstanceNorm2d(num_features, affine=False)  
+        self.norm = BatchInstanceNorm2d(num_features, affine = True)
         self.fc = nn.Linear(style_dim, num_features*2)
     def forward(self, x, s): 
         h = self.fc(s)
@@ -47,9 +47,9 @@ class cnnGenerator(nn.Module): #added noise after breakup
         x = F.relu(self.conv2(x))
         #afterbreakup
         if rand:
-            z = torch.randn(len(x), self.zdim).cuda() #run1
-            #z = torch.randn(1, self.zdim).cuda() #run0
-            #z= z.repeat(len(x), 1) #run0
+            #z = torch.randn(len(x), self.zdim).cuda() #run1
+            z = torch.randn(1, self.zdim).cuda() #run0
+            z= z.repeat(len(x), 1) #run0
             x = self.adain2(x, z)
         x = F.relu(self.conv3(x))
         x = torch.sigmoid(self.conv4(x))

@@ -182,11 +182,11 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     elif loss_fn=='mdar':
         con_criterion = MdarLoss(projection_dim, lmda= lmda,lmda_task=lmda_task)
     
-    #kl_loss = nn.KLDivLoss(reduction="batchmean")
+    kl_loss = nn.KLDivLoss(reduction="batchmean")
     ##########################################    
     #Create Oracle Model    
     if (oracle == 'True'):
-
+        
         #Oracle Net version.1
         print("--Initializing Teacher Net for Mutual Information Maximization (From Finetuned)")
         oracle_net= copy.deepcopy(src_net)
@@ -204,6 +204,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         freeze("encoder",oracle_net)
         oracle_net.oracle= True
         '''
+        
         #Get Hooks (Currently only in resnet)
         oracle_net.get_hook()
         src_net.get_hook()
@@ -285,7 +286,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     #h_source= src_net(x,mode='encoder')#oracle    
                     
                     #after dinner
-                    h_oracle, intermediate_oracle = oracle_net(x, mode= 'encoder_intermediate')
+                    with torch.no_grad():
+                        h_oracle, intermediate_oracle = oracle_net(x, mode= 'encoder_intermediate')
                     h_source, intermediate_source = src_net(x, mode= 'encoder_intermediate')
                     
                     keeper= ['conv1','bn1','relu','maxpool','layer1','layer2','layer3','layer4']
@@ -331,7 +333,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     #oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_source.unsqueeze(1)], dim=1)
                     #oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True) #standardize true showed better results
                     
-                    oracle_loss= 0.0
+                    oracle_loss= 0.
                     #og oracle
                     for f, pre_f, mean_enc, var_enc in zip_strict(intermediate_source,intermediate_oracle,mean_encoders,var_encoders):
                         mean= mean_enc(f) 
@@ -342,7 +344,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 
                 #Source Task Model Loss
                 loss = src_cls_loss + w_tgt*tgt_cls_loss + w_tgt*con_loss  #og
-                
+                #loss = src_cls_loss + w_tgt*con_loss #hypo
                 #Oracle Loss 
                 if (oracle == 'True'):
                     loss += (w_oracle* oracle_loss)
@@ -378,8 +380,10 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                         div_loss = (H_tgt-H2_tgt).abs().mean([1,2]).clamp(max=div_thresh).mean()
                         cyc_loss = torch.tensor(0).cuda()
                     
+                    #batch_loss = 1/ kl_loss(x, x_tgt)
+                    
                     if loss_fn == 'mdar':
-                        loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss - w_info*con_loss_adv #og
+                        loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss - w_info*con_loss_adv #+ w_div*batch_loss #og
                     elif loss_fn == 'supcon':
                         loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss + w_info*con_loss_adv
                     '''

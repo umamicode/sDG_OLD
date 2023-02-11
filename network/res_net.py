@@ -62,7 +62,17 @@ class ConvNet(nn.Module):
         def hook(module, input, output):
             self.selected_out[layer_name] = output
         return hook
-    
+    def freeze_bn(self):
+        #for m in self.encoder._modules():
+        #    if isinstance(m, nn.BatchNorm2d):
+        #        m.eval()
+        for module in self.modules():
+            if isinstance(module, nn.BatchNorm2d):
+                if hasattr(module, 'weight'):
+                    module.weight.requires_grad_(False)
+                if hasattr(module, 'bias'):
+                    module.bias.requires_grad_(False)
+                module.eval()
     
         
     def forward(self, x, mode='test'):

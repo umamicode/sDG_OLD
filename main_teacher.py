@@ -53,8 +53,10 @@ os.environ['TF_CPP_MIN_LOG_LEVEL']= '2'
 @click.option('--loss_fn', type=str, default='mdar', help= 'Loss Functions (supcon/mdar')
 @click.option('--lmda', type=float, default=0.051, help='Lambda for Adversarial BT')
 @click.option('--lmda_task', type=float, default=0.0051, help='Lambda for Adversarial BT')
+@click.option('--w_oracle', type=float, default=0.1, help='Weight for Professor')
+@click.option('--oracle_epoch', type=int, default=10)
 
-def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr, lr_scheduler, svroot, backbone, pretrained, projection_dim, optimizer,oracle,loss_fn,lmda,lmda_task):
+def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr, lr_scheduler, svroot, backbone, pretrained, projection_dim, optimizer,oracle,loss_fn,lmda,lmda_task,w_oracle,oracle_epoch):
     settings = locals().copy()
     print(settings)
 
@@ -203,39 +205,31 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
         con_criterion = SupConLoss()
     elif loss_fn=='mdar':
         con_criterion = MdarLoss(projection_dim, lmda= lmda,lmda_task=lmda_task)
+    cls_net.get_hook()
+    
     
     #Create Oracle Model   
-    if (oracle == 'True'):
-        #Oracle Net Version.1
-        
-        print("--Initializing Teacher Net for Mutual Information Maximization (From Finetuned)")
-        #Oracle Net version.1
-        oracle_net= copy.deepcopy(cls_net)
-        freeze("encoder",oracle_net)
-        oracle_net= oracle_net.cuda()
-        oracle_net.oracle= True
-        
-        #Oracle Net Version.2
-        '''
-        print("--Initializing Teacher Net for Mutual Information Maximization (From Scratch)")
-        encoder = get_resnet(backbone, pretrained='True') # Pretrained Backbone default as False - We will load our model anyway
-        n_features = encoder.fc.in_features
-        output_dim = output_dim #10 
-        oracle_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() 
-        freeze("encoder",oracle_net)
-        oracle_net.oracle= True
-        '''
-        #Get Hooks (Currently only in resnet)
-        oracle_net.get_hook()
-        cls_net.get_hook()   
+    
+    #Oracle Net Version.1
+    print("--Initializing Teacher Net for Mutual Information Maximization (From Scratch)")
+    #Oracle Net version.1
+    oracle_net= copy.deepcopy(cls_net)
+    freeze("encoder",oracle_net)
+    oracle_net.freeze_bn()
+    oracle_net= oracle_net.cuda()
+    oracle_net.oracle= True
+    oracle_net.get_hook()
     
     
+    
+    #Mean/Variance Encoder Setup
     mean_encoders = None
     var_encoders = None
     # Train Start
     best_acc = 0
     for epoch in range(epochs):
         t1 = time.time()
+        
         
         loss_list = []
         cls_net.train()
@@ -247,38 +241,42 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
             cls_loss = cls_criterion(p, y)
             
             #ORACLE
-            h_oracle, intermediate_oracle = oracle_net(x, mode= 'encoder_intermediate')
-            h_source, intermediate_source = cls_net(x, mode= 'encoder_intermediate')
-            
-            
-            keeper= ['conv1','bn1','relu','maxpool','layer1','layer2','layer3','layer4']
-            intermediate_oracle= {key: intermediate_oracle[key] for key in keeper}
-            intermediate_source= {key: intermediate_source[key] for key in keeper}
-            
-            
-            shapes= [list(intermediate_oracle[i].shape) for i in intermediate_oracle.keys()]
-            intermediate_oracle= intermediate_oracle.values()
-            intermediate_source= intermediate_source.values()
+            if epoch >= oracle_epoch:
+                with torch.no_grad():
+                    h_oracle, intermediate_oracle = oracle_net(x, mode= 'encoder_intermediate')
+                h_source, intermediate_source = cls_net(x, mode= 'encoder_intermediate')
+                
+                
+                keeper= ['conv1','bn1','relu','maxpool','layer1','layer2','layer3']#'layer4']
+                intermediate_oracle= {key: intermediate_oracle[key] for key in keeper}
+                intermediate_source= {key: intermediate_source[key] for key in keeper}
+                
+                
+                shapes= [list(intermediate_oracle[i].shape) for i in intermediate_oracle.keys()]
+                intermediate_oracle= intermediate_oracle.values()
+                intermediate_source= intermediate_source.values()
             
                     
-            if not mean_encoders:
-                mean_encoders = nn.ModuleList([MeanEncoder(shape) for shape in shapes])
-            if not var_encoders:
-                var_encoders = nn.ModuleList([VarianceEncoder(shape) for shape in shapes])
-            oracle_loss= 0.0
-            
-            
-            
-            for f,pre_f, mean_enc, var_enc in zip_strict(intermediate_source,intermediate_oracle,mean_encoders,var_encoders):
-                mean= mean_enc(f) 
-                var= var_enc(f).cuda()
-                
-                vlb= (mean - pre_f).pow(2).div(var) + var.log()
-                oracle_loss += vlb.mean()/2
-            
+                if not mean_encoders:
+                    mean_encoders = nn.ModuleList([MeanEncoder(shape) for shape in shapes])
+                if not var_encoders:
+                    var_encoders = nn.ModuleList([VarianceEncoder(shape) for shape in shapes])
+                    
+                oracle_loss= 0.0
+
+                for f,pre_f, mean_enc, var_enc in zip_strict(intermediate_source,intermediate_oracle,mean_encoders,var_encoders):
+                    
+                    
+                    mean= mean_enc(f) 
+                    var= var_enc(f).cuda()
+                    
+                    vlb= (mean - pre_f).pow(2).div(var) + var.log()
+                    oracle_loss += vlb.mean()/2
+            else:
+                oracle_loss= torch.tensor(0)
             
             #loss update
-            loss= cls_loss + 0.1*oracle_loss
+            loss= cls_loss + (w_oracle * oracle_loss)
             cls_opt.zero_grad()
             loss.backward()
             cls_opt.step()
@@ -289,38 +287,26 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
             if lr_scheduler in ['cosine']:
                 scheduler.step()
 
-        cls_loss,oracle_loss = np.mean(loss_list, 0)
+        cls_loss, oracle_loss = np.mean(loss_list, 0)
         
 
         # Test and Save Optimal Model
         cls_net.eval()
         if data in ['mnist', 'mnist_t', 'cifar10', 'pacs','officehome']:
             teacc = evaluate(cls_net, teloader)
-            
+        '''
         if best_acc < teacc:
             best_acc = teacc
             torch.save({'cls_net':cls_net.state_dict()}, os.path.join(svroot, 'best.pkl'))
-
+        '''
         # Save Log
         t2 = time.time()
         print(f'epoch {epoch}, time {t2-t1:.2f}, cls_loss {cls_loss:.4f} oracle_loss {oracle_loss:.4f} teacc {teacc:2.2f}')
         writer.add_scalar('scalar/cls_loss', cls_loss, epoch)
         writer.add_scalar('scalar/oracle_loss', oracle_loss, epoch)
         writer.add_scalar('scalar/teacc', teacc, epoch)
-
-        #Intermediate Evaluation
-        if data == 'mnist':
-            pklpath = f'{svroot}/best.pkl'
-            evaluate_digit(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained, projection_dim= projection_dim) #Pretrained set as False, it will load our model instead.
-        elif data == 'cifar10':
-            pklpath = f'{svroot}/best.pkl'
-            evaluate_image(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained, projection_dim= projection_dim, c_level= 5)
-        elif data == 'pacs':
-            pklpath = f'{svroot}/best.pkl'
-            evaluate_pacs(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained, projection_dim= projection_dim)
-        elif data == 'officehome':
-            pklpath = f'{svroot}/best.pkl'
-            evaluate_officehome(gpu, pklpath, pklpath+'.test', backbone= backbone, pretrained= pretrained, projection_dim= projection_dim)
+        
+    torch.save({'cls_net':cls_net.state_dict()}, os.path.join(svroot, 'best.pkl'))
     writer.close()
 
 def evaluate(net, teloader):
