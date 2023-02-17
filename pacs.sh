@@ -19,7 +19,7 @@ tgt_epochs_fixg=5 #15
 tgt_epochs=10 #30
 lmda=0.051 #lmda for adv-barlowtwins (0.051 best)
 
-gen=stn
+gen=cnn
 interpolation=img
 oracle=False
 
@@ -36,7 +36,7 @@ optimizer=adam #sgd/adam
 batchsize=16 #default:16 for pacs
 
 # Model Load/Save Path
-svroot=saved-model/stn/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_lmda${lmda}_oracle${oracle}_${w_oracle}_lr${lr}_${lr_scheduler}_${optimizer}_run${2}
+svroot=saved-model/uniform/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_lmda${lmda}_oracle${oracle}_${w_oracle}_lr${lr}_${lr_scheduler}_${optimizer}_run${2}
 baseroot=saved-model/${data}/base_${backbone}_${pretrained}_${projection_dim}_run0/best.pkl
 
 # step1

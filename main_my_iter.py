@@ -15,9 +15,10 @@ import time
 import numpy as np
 import copy
 
-from loss_functions import SupConLoss, MdarLoss, kl_divergence
+from loss_functions import SupConLoss, MdarLoss, MdarLossV2
 from network import mnist_net, res_net, cifar_net, generator
 from network.modules import get_resnet, get_generator, freeze, unfreeze, freeze_, unfreeze_, LARS
+from network.modules.batchinstance_norm import BatchInstanceNorm2d
 from tools.miro_utils import *
 from tools.farmer import *
 import data_loader
@@ -181,8 +182,13 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         con_criterion = SupConLoss()
     elif loss_fn=='mdar':
         con_criterion = MdarLoss(projection_dim, lmda= lmda,lmda_task=lmda_task)
+    elif loss_fn == 'mdarv2':
+        con_criterion = MdarLossV2(projection_dim, lmda= lmda, lmda_task=lmda_task)
     
+    #Additional Setting
     kl_loss = nn.KLDivLoss(reduction="batchmean")
+    instance_norm= nn.InstanceNorm2d(3, affine=False) #Set Channel=3 (B,C,H,W)
+    #bi_norm = BatchInstanceNorm2d(3, affine = True)
     ##########################################    
     #Create Oracle Model    
     if (oracle == 'True'):
@@ -343,8 +349,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     
                 
                 #Source Task Model Loss
-                loss = src_cls_loss + w_tgt*tgt_cls_loss + w_tgt*con_loss  #og
-                #loss = src_cls_loss + w_tgt*con_loss #hypo
+                #loss = src_cls_loss + w_tgt*tgt_cls_loss + w_tgt*con_loss  #og
+                loss = src_cls_loss + w_tgt*con_loss #hypo
                 #Oracle Loss 
                 if (oracle == 'True'):
                     loss += (w_oracle* oracle_loss)
@@ -369,10 +375,15 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 
                 else:
                     idx = np.random.randint(0, zsrc.size(1))
-                    zall = torch.cat([z_tgt.unsqueeze(1), zsrc[:,idx:idx+1].detach()], dim=1)
+                    zall = torch.cat([z_tgt.unsqueeze(1), zsrc[:,idx:idx+1].detach()], dim=1) #z_tgt.shape = {16,512} /x_tgt.shape = {[16, 3, 224, 224]}
+                
                     con_loss_adv = con_criterion(zall, adv=True) #[TODO]GCD 
                     
                     if gen in ['cnn', 'hr']:
+                        x_tgt,x2_tgt= instance_norm(x_tgt), instance_norm(x2_tgt)  #MIDNIGHT 0215 #torch.Size([128, 3, 32, 32])
+                        
+                        #x_tgt = bi_norm(x_tgt)
+                        #x2_tgt = bi_norm(x2_tgt)
                         div_loss = (x_tgt-x2_tgt).abs().mean([1,2,3]).clamp(max=div_thresh).mean() # Constraint Generator Divergence
                         x_tgt_rec = g2_net(x_tgt)
                         cyc_loss = F.mse_loss(x_tgt_rec, x) 
@@ -381,9 +392,12 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                         cyc_loss = torch.tensor(0).cuda()
                     
                     #batch_loss = 1/ kl_loss(x, x_tgt)
+                    #batch_loss = dd_loss(zall)
                     
                     if loss_fn == 'mdar':
-                        loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss - w_info*con_loss_adv #+ w_div*batch_loss #og
+                        loss = w_cls*tgt_cls_loss + w_cyc*cyc_loss - w_div*div_loss - w_info*con_loss_adv #+ w_div*batch_loss  #og
+                    elif loss_fn == 'mdarv2':
+                        loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss + w_info*con_loss_adv
                     elif loss_fn == 'supcon':
                         loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss + w_info*con_loss_adv
                     '''

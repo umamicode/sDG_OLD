@@ -11,8 +11,8 @@ w_div=2.0
 div_thresh=0.5
 w_tgt=1.0
 
-n_tgt=100 #20
-max_tgt=99 #19
+n_tgt=150 #20
+max_tgt=149 #19
 tgt_epochs_fixg=5 #15
 tgt_epochs=10 #30
 lmda=0.051 #lmda for adv-barlowtwins (0.051 best)
@@ -24,7 +24,7 @@ data=mnist #mnist/cifar10/pacs
 backbone=custom #(custom)
 pretrained=False #Only to load right base model. my_iter process is set as pretrained=False.
 projection_dim=128 #default: (mnist: 128/ cifar-10:)
-loss_fn=mdar #supcon/mdar
+loss_fn=mdar #supcon/mdar/mdarv2
 
 
 batchsize=128 #default:128 -> 256

@@ -20,10 +20,10 @@ class _BatchInstanceNorm(_BatchNorm):
             bn_w = self.weight * self.gate
         else:
             bn_w = self.gate
+           
         out_bn = F.batch_norm(
             input, self.running_mean, self.running_var, bn_w, self.bias,
             self.training, self.momentum, self.eps)
-        
         # Instance norm
         b, c  = input.size(0), input.size(1)
         if self.affine:
