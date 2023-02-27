@@ -59,7 +59,6 @@ HOME = os.environ['HOME']
 @click.option('--pretrained', type=str, default= 'False', help= 'Pretrained Backbone - ResNet18/50, Custom MNISTnet does not matter')
 @click.option('--projection_dim', type=int, default=128, help= "Projection Dimension of the representation vector for Resnet; Default: 128")
 @click.option('--oracle', type=str, default='False', help= "Oracle Model for large pretrained models")
-@click.option('--oracle_type', type=str, default='ft', help= "(ft/scratch) Oracle Model From Finetuned/Scratch")
 @click.option('--optimizer', type=str, default='adam', help= "adam/sgd")
 
 
@@ -67,7 +66,7 @@ HOME = os.environ['HOME']
 def experiment(gpu, data, ntr, gen, gen_mode, \
         n_tgt, tgt_epochs, tgt_epochs_fixg, nbatch, batchsize, lr, lr_scheduler, svroot, ckpt, \
         w_cls, w_info, w_cyc, w_div, w_oracle,lmda,lmda_task, div_thresh, w_tgt, interpolation, loss_fn, \
-        backbone, pretrained, projection_dim, oracle,oracle_type, optimizer):
+        backbone, pretrained, projection_dim, oracle, optimizer):
     settings = locals().copy()
     print(settings)
     print("--Loss Function: {loss_fn}".format(loss_fn= loss_fn))
@@ -195,24 +194,22 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     if (oracle == 'True'):
         
         #Oracle Net version.1
-        if oracle_type == 'ft':
-            print("--Initializing Teacher Net for Mutual Information Maximization (From Finetuned)")
-            oracle_net= copy.deepcopy(src_net)
-            freeze("encoder",oracle_net)
-            oracle_net= oracle_net.cuda()
-            oracle_net.oracle= True
+        print("--Initializing Teacher Net for Mutual Information Maximization (From Finetuned)")
+        oracle_net= copy.deepcopy(src_net)
+        freeze("encoder",oracle_net)
+        oracle_net= oracle_net.cuda()
+        oracle_net.oracle= True
         
         #Oracle Net Version.2
-        elif oracle_type == 'scratch':
-        
-            print("--Initializing Teacher Net for Mutual Information Maximization (From Scratch)")
-            encoder = get_resnet(backbone, pretrained='True') # Pretrained Backbone default as False - We will load our model anyway
-            n_features = encoder.fc.in_features
-            output_dim = output_dim #10 
-            oracle_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() 
-            freeze("encoder",oracle_net)
-            oracle_net.oracle= True
-        
+        '''
+        print("--Initializing Teacher Net for Mutual Information Maximization (From Scratch)")
+        encoder = get_resnet(backbone, pretrained='True') # Pretrained Backbone default as False - We will load our model anyway
+        n_features = encoder.fc.in_features
+        output_dim = output_dim #10 
+        oracle_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() 
+        freeze("encoder",oracle_net)
+        oracle_net.oracle= True
+        '''
         
         #Get Hooks (Currently only in resnet)
         oracle_net.get_hook()
@@ -289,7 +286,11 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 
                 
                 # oracle forward
-                if (oracle == 'True'):                                                           
+                if (oracle == 'True'):                                       
+                    #For Domain Alignment
+                    #h_oracle= oracle_net(x,mode='encoder')#oracle
+                    #h_source= src_net(x,mode='encoder')#oracle    
+                    
                     #after dinner
                     with torch.no_grad():
                         h_oracle, intermediate_oracle = oracle_net(x, mode= 'encoder_intermediate')
@@ -335,7 +336,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 #oracle
                 if (oracle == 'True'):
                     #oracle_tensors are not normalized (dim=1).
-                    
+                    #oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_source.unsqueeze(1)], dim=1)
+                    #oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True) #standardize true showed better results
                     
                     oracle_loss= 0.
                     #og oracle
@@ -345,12 +347,10 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                         vlb= (mean - pre_f).pow(2).div(var) + var.log()
                         oracle_loss += vlb.mean()/ 2.
                     
-                    #oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_source.unsqueeze(1)], dim=1)
-                    #oracle_loss += con_criterion(oracle_tensors, adv=False, standardize= True) #standardize true showed better results
                 
                 #Source Task Model Loss
-                loss = src_cls_loss + w_tgt*tgt_cls_loss + w_tgt*con_loss  #og #run6
-                #loss = src_cls_loss + w_tgt*con_loss #hypo 
+                #loss = src_cls_loss + w_tgt*tgt_cls_loss + w_tgt*con_loss  #og
+                loss = src_cls_loss + w_tgt*con_loss #hypo
                 
                 #Oracle Loss 
                 if (oracle == 'True'):
@@ -383,7 +383,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     if gen in ['cnn', 'hr']:
                         x_tgt_in,x2_tgt_in,x_in= instance_norm(x_tgt), instance_norm(x2_tgt), instance_norm(x)  #MIDNIGHT 0215 #torch.Size([128, 3, 32, 32])
                         div_loss = (x_tgt_in - x2_tgt_in).abs().mean([1,2,3]).clamp(max=div_thresh).mean() # Constraint Generator Divergence
-                        div_loss += (x_tgt_in - x_in).abs().mean([1,2,3]).clamp(max=div_thresh).mean() #6401
+                        #div_loss = (x_tgt_in - x_in).abs().mean([1,2,3]).clamp(max=div_thresh).mean() #6401
                         x_tgt_rec = g2_net(x_tgt)
                         cyc_loss = F.mse_loss(x_tgt_rec, x) 
                     elif gen == 'stn':
@@ -391,7 +391,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                         cyc_loss = torch.tensor(0).cuda()
                                         
                     if loss_fn == 'mdar':
-                        loss = w_cls*tgt_cls_loss + w_cyc*cyc_loss - w_div*div_loss - w_info*con_loss_adv
+                        loss = w_cls*tgt_cls_loss + w_cyc*cyc_loss - w_div*div_loss - w_info*con_loss_adv #+ w_div*batch_loss  #og
                     elif loss_fn == 'mdarv2':
                         loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss + w_info*con_loss_adv
                     elif loss_fn == 'supcon':

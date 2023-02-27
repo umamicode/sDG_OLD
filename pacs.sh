@@ -22,7 +22,7 @@ lmda=0.051 #lmda for adv-barlowtwins (0.051 best)
 gen=cnn
 interpolation=img
 oracle=False
-
+oracle_type=ft #ft/scratch
 
 data=pacs #mnist/cifar10/pacs
 backbone=resnet18 #(pacs_net/resnet18/resnet50/wideresnet) 
@@ -36,11 +36,11 @@ optimizer=adam #sgd/adam
 batchsize=16 #default:16 for pacs
 
 # Model Load/Save Path
-svroot=saved-model/uniform/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_lmda${lmda}_oracle${oracle}_${w_oracle}_lr${lr}_${lr_scheduler}_${optimizer}_run${2}
+svroot=saved-model/uniform/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_lmda${lmda}_oracle${oracle}_${oracle_type}_${w_oracle}_lr${lr}_${lr_scheduler}_${optimizer}_run${2}
 baseroot=saved-model/${data}/base_${backbone}_${pretrained}_${projection_dim}_run0/best.pkl
 
 # step1
-python3 main_my_iter.py --gpu $1 --data ${data} --gen $gen --backbone ${backbone} --loss_fn ${loss_fn} --projection_dim ${projection_dim} --interpolation $interpolation --n_tgt ${n_tgt} --tgt_epochs ${tgt_epochs} --tgt_epochs_fixg ${tgt_epochs_fixg} --nbatch 100 --batchsize ${batchsize} --lr ${lr} --w_cls $w_cls --w_cyc $w_cyc --w_info $w_info --w_div $w_div --w_oracle $w_oracle --div_thresh ${div_thresh} --w_tgt $w_tgt --ckpt ${baseroot} --svroot ${svroot} --pretrained ${pretrained} --oracle ${oracle} --lmda ${lmda} --lr_scheduler ${lr_scheduler} --optimizer ${optimizer}
+python3 main_my_iter.py --gpu $1 --data ${data} --gen $gen --backbone ${backbone} --loss_fn ${loss_fn} --projection_dim ${projection_dim} --interpolation $interpolation --n_tgt ${n_tgt} --tgt_epochs ${tgt_epochs} --tgt_epochs_fixg ${tgt_epochs_fixg} --nbatch 100 --batchsize ${batchsize} --lr ${lr} --w_cls $w_cls --w_cyc $w_cyc --w_info $w_info --w_div $w_div --w_oracle $w_oracle --div_thresh ${div_thresh} --w_tgt $w_tgt --ckpt ${baseroot} --svroot ${svroot} --pretrained ${pretrained} --oracle ${oracle} --lmda ${lmda} --lr_scheduler ${lr_scheduler} --optimizer ${optimizer} --oracle_type ${oracle_type}
 python3 main_test.py --gpu $1 --modelpath ${svroot}/${max_tgt}-best.pkl --svpath ${svroot}/test.log --backbone ${backbone} --projection_dim ${projection_dim} --data ${data}
 
 #done

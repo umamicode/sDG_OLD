@@ -88,7 +88,7 @@ class MdarLossV2(nn.Module):
                 on_diag /= (self.penalty)
                 off_diag /= (self.penalty * (self.penalty -1))
             #OG ADV LOSS (NE PAS TOUCHER) -lmda test results: 0.051 optimal
-            loss = (self.lmda * off_diag) / on_diag #wrapping ondiag with log was terrible
+            loss = on_diag / (self.lmda * off_diag) #wrapping ondiag with log was terrible
             
             
             #Candidates
