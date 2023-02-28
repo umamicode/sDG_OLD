@@ -124,21 +124,18 @@ def load_cifar10(split='train', translate=None, twox=False, ntr=None, autoaug=No
                     1 Return a single channel image
     '''
     path = f'data/cifar10-{split}.pkl'
-    cifar10_transforms_train= transforms.Compose([transforms.Resize((32,32))]) #224,224
+    #cifar10_transforms_train= transforms.Compose([transforms.Resize((32,32))]) #224,224
+    cifar10_transforms_train = transforms.Compose([transforms.Resize((32, 32)),transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
     if not os.path.exists(path):
-        dataset = CIFAR10(f'{HOME}/.pytorch/CIFAR10', train=(split=='train'), download=True, transform= cifar10_transforms_train)
+        #dataset = CIFAR10(f'{HOME}/.pytorch/CIFAR10', train=(split=='train'), download=True, transform= cifar10_transforms_train)
+        dataset = CIFAR10(f'./data/CIFAR10', train=(split=='train'), download=True, transform= cifar10_transforms_train)
+
         x, y = dataset.data, dataset.targets
         
-        #Only Select First 10k images as train
-        #if split=='train':
-        #    x, y = x[0:10000], y[0:10000]
-        
-        #[TODO] - solve -> AttributeError: 'numpy.ndarray' object has no attribute 'numpy'
-        #x = torch.tensor(resize_imgs(x.numpy(), 32))
-        #x = torch.tensor(resize_imgs_dkcho(x, 32)) # x-> torch.Size([10000, 32, 32, 3])
         x= torch.tensor(x)
-        x = (x.float()/255.)#.unsqueeze(1).repeat(1,3,1,1)  #<class 'torch.Tensor'>
+        x= (x.float()/255.)
         x= x.permute(0,3,1,2) #[batchsize,w,h,channel] -> [batchsize, channel, w,h]
+        #x= transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(x)
         y = torch.tensor(y)
         with open(path, 'wb') as f:
             pickle.dump([x, y], f)
@@ -259,14 +256,19 @@ def load_cifar10c(split='train', translate=None, twox=False, ntr=None, autoaug=N
 
 def load_cifar10c_level(split='test', ctype= 'fog', level= 5, translate=None, twox=False, ntr=None, autoaug=None, channels=3):
     path = f'data/cifar10c-{ctype}_{level}.pkl'
-    cifar10_transforms_train= transforms.Compose([transforms.Resize((32,32))]) #224,224
+    #Ref: https://github.com/tanimutomo/cifar10-c-eval/blob/master/src/test.py
+    MEAN = [0.49139968, 0.48215841, 0.44653091]
+    STD  = [0.24703223, 0.24348513, 0.26158784]
+    #cifar10_transforms_train= transforms.Compose([transforms.Resize((32,32))]) #224,224
+    cifar10c_transforms_train = transforms.Compose([transforms.Resize((32,32)),transforms.ToTensor(),transforms.Normalize(MEAN,STD)])
     if not os.path.exists(path):
         tfpath= f'cifar10_corrupted/{ctype}_{level}'.format(ctype= ctype, level= level)
         dataset = tfds.as_numpy(tfds.load(tfpath, split= split, shuffle_files= True, batch_size= -1))
         x, y = dataset['image'], dataset['label']
         x= torch.tensor(x)
-        x = (x.float()/255.)#.unsqueeze(1).repeat(1,3,1,1)  #<class 'torch.Tensor'>
+        x = (x.float()/255.) # #<class 'torch.Tensor'>
         x= x.permute(0,3,1,2) #[batchsize,w,h,channel] -> [batchsize, channel, w,h]
+        #x= transforms.Normalize(MEAN,STD)(x)
         y = torch.tensor(y)
         with open(path, 'wb') as f:
             pickle.dump([x, y], f)
@@ -555,8 +557,6 @@ if __name__=='__main__':
     print('syndigit', len(dataset))
     dataset= load_stl10(split='test')
     print('stl10', len(dataset))
-    dataset= load_cifar10c(split='test')
-    print('cifar10-c', len(dataset))
     dataset= load_pacs(split='test')
     print('pacs', len(dataset))
     dataset= load_imagenet(split='test')

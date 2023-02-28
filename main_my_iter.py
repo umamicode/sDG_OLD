@@ -150,7 +150,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             if optimizer == 'adam':
-                src_opt = optim.Adam(src_net.parameters(), lr=lr)
+                src_opt = optim.Adam(src_net.parameters(), lr=lr, weight_decay=0.01)
             elif optimizer == 'sgd':
                 src_opt = optim.SGD(src_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)     
     #PACS
@@ -276,8 +276,8 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
 
                 # Synthesize new data
                 if gen in ['cnn', 'hr']:
-                    x_tgt = g1_net(x, rand=True)
-                    x2_tgt = g1_net(x, rand=True)
+                    x_tgt, H_tgt = g1_net(x, rand=True, return_H=True)
+                    x2_tgt, H2_tgt = g1_net(x, rand=True, return_H=True)
                     
                 elif gen == 'stn':
                     x_tgt, H_tgt = g1_net(x, rand=True, return_H=True)
@@ -382,8 +382,10 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     
                     if gen in ['cnn', 'hr']:
                         x_tgt_in,x2_tgt_in,x_in= instance_norm(x_tgt), instance_norm(x2_tgt), instance_norm(x)  #MIDNIGHT 0215 #torch.Size([128, 3, 32, 32])
-                        div_loss = (x_tgt_in - x2_tgt_in).abs().mean([1,2,3]).clamp(max=div_thresh).mean() # Constraint Generator Divergence
-                        div_loss += (x_tgt_in - x_in).abs().mean([1,2,3]).clamp(max=div_thresh).mean() #6401
+                        #div_loss = (x_tgt_in - x2_tgt_in).abs().mean([1,2,3]).clamp(max=div_thresh).mean() # Constraint Generator Divergence #only using this = 10001
+                        #div_loss = (x_tgt_in - x_in).abs().mean([1,2,3]).clamp(max=div_thresh).mean() #run 10001 (excluding this) 
+                        div_loss = (x_tgt - x2_tgt).abs().mean([1,2,3]).clamp(max=div_thresh).mean() #include 10002
+                        div_loss += (H_tgt-H2_tgt).abs().mean([1,2]).clamp(max=div_thresh).mean()
                         x_tgt_rec = g2_net(x_tgt)
                         cyc_loss = F.mse_loss(x_tgt_rec, x) 
                     elif gen == 'stn':

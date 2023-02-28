@@ -122,7 +122,6 @@ def evaluate_image(gpu, modelpath, svpath, backbone, pretrained,projection_dim,c
     # Test
     str2fun = { 
             'cifar10': data_loader.load_cifar10,
-            'cifar10c': data_loader.load_cifar10c,
             'cifar10_1': data_loader.load_cifar10_1,
             'cifar10c_lv': data_loader.load_cifar10c_level,
             }   

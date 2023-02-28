@@ -25,6 +25,7 @@ class Reshape(nn.Module):
         self.shape = args
     def forward(self, x):
         return x.view((x.size(0),)+self.shape)
+    
 
 class MixStyle(nn.Module):
     """MixStyle.
@@ -115,13 +116,57 @@ class cnnGenerator(nn.Module): #added noise after breakup
         self.adain2 = AdaIN2d(zdim, 2*n)
         self.conv3 = nn.Conv2d(2*n, 4*n, kernelsize, 1, stride)
         self.conv4 = nn.Conv2d(4*n, imdim, kernelsize, 1, stride)
-        self.mixstyle= MixStyle(mix='crossdomain')
+        self.mixstyle= MixStyle(mix='random') #crossdomain
+        
+        #STN
+        self.mapz = nn.Linear(zdim, imsize[0]*imsize[1])
+        if imsize == [32,32]:
+            self.loc = nn.Sequential(
+                    nn.Conv2d( 4,  16, 5), nn.MaxPool2d(2), nn.ReLU(),
+                    nn.Conv2d( 16, 32, 5), nn.MaxPool2d(2), nn.ReLU(),)
+            self.fc_loc = nn.Sequential(
+                    nn.Linear(32*5*5, 32), nn.ReLU(),
+                    nn.Linear(32, 6))
+        elif imsize == [224,224]:
+            self.loc = nn.Sequential(
+                    nn.Conv2d(4,16,5,2), nn.MaxPool2d(2), nn.ReLU(),
+                    nn.Conv2d(16,32,5,2), nn.MaxPool2d(2), nn.ReLU(),
+                    nn.Conv2d(32,32,5,2),nn.ReLU()
+            )
+            self.fc_loc = nn.Sequential(
+                    nn.Linear(32*5*5, 32), nn.ReLU(),
+                    nn.Linear(32, 6))
+        # weight initialization
+        self.fc_loc[2].weight.data.zero_()
+        self.fc_loc[2].bias.data.copy_(torch.tensor([1,0,0,0,1,0]))
 
-    def forward(self, x, rand=False): 
+    def forward(self, x, rand=False, return_H= False): 
         ''' x '''
+                
+        #STN
+        z = torch.randn(len(x), self.zdim).cuda()
+        z = self.mapz(z).view(len(x), 1, x.size(2), x.size(3))
+        loc = self.loc(torch.cat([x, z], dim=1)) # [N, -1]
+        loc = loc.view(len(loc), -1)
+        H = self.fc_loc(loc)
+        H = H.view(len(H), 2, 3)
+        
+        H[:,0,0] = 1 
+        H[:,0,1] = 0 
+        H[:,1,0] = 0 
+        H[:,1,1] = 1 
+        
+        grid = F.affine_grid(H, x.size())
+        x = F.grid_sample(x, grid)
+        
+        
+        
+        #MIXSTYLE + Style-Transfer
         x = F.relu(self.conv1(x))
+        #x= self.mixstyle(x)
         x = F.relu(self.conv2(x))
-        #afterbreakup
+        #x= self.mixstyle(x)
+        
         if rand:
             z = torch.randn(len(x), self.zdim).cuda() #run1
             #z = torch.randn(1, self.zdim).cuda() #run0
@@ -130,14 +175,12 @@ class cnnGenerator(nn.Module): #added noise after breakup
             x = self.adain2(x, z)
         x = F.relu(self.conv3(x))
         x = torch.sigmoid(self.conv4(x))
-        return x
+        if return_H:
+            return x, H
+        else:
+            return x
 
-class Reshape(nn.Module):
-    def __init__(self, *args):
-        super(Reshape, self).__init__()
-        self.shape = args
-    def forward(self, x): 
-        return x.view((x.size(0),)+self.shape)
+
 
 class stnGenerator(nn.Module):
     ''' Affine transformation '''
