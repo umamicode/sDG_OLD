@@ -98,7 +98,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     elif data in ['pacs']:
         trset = data_loader.load_pacs(split='train')
         teset = data_loader.load_pacs(split='test')
-        imsize = [224,224]#[32, 32] 
+        imsize = [224,224] #[32, 32] #[224,224]#[32, 32] 
     elif data in ['officehome']:
         trset = data_loader.load_officehome(split='train')
         teset = data_loader.load_officehome(split='test')
@@ -248,7 +248,6 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             
             
             src_net.train() 
-            #src_net.eval()
             for i, (x, y) in enumerate(trloader):  
 
                 x, y = x.cuda(), y.cuda()
@@ -336,21 +335,22 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 if (oracle == 'True'):
                     #oracle_tensors are not normalized (dim=1).
                     
-                    
+                    '''
                     oracle_loss= 0.
-                    #og oracle
+                    
+                    #MIRO
                     for f, pre_f, mean_enc, var_enc in zip_strict(intermediate_source,intermediate_oracle,mean_encoders,var_encoders):
                         mean= mean_enc(f) 
                         var= var_enc(f).cuda() #idk why but not in gpu
                         vlb= (mean - pre_f).pow(2).div(var) + var.log()
                         oracle_loss += vlb.mean()/ 2.
-                    
-                    #oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_source.unsqueeze(1)], dim=1)
-                    #oracle_loss += con_criterion(oracle_tensors, adv=False, standardize= True) #standardize true showed better results
+                    '''
+                    oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_source.unsqueeze(1)], dim=1)
+                    oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True) #standardize true showed better results
                 
                 #Source Task Model Loss
-                loss = src_cls_loss + w_tgt*tgt_cls_loss + w_tgt*con_loss  #og #run6
-                #loss = src_cls_loss + w_tgt*con_loss #hypo 
+                loss = src_cls_loss + w_tgt*tgt_cls_loss + w_tgt*con_loss  
+                #loss = src_cls_loss + w_tgt*con_loss #run3/nye
                 
                 #Oracle Loss 
                 if (oracle == 'True'):
@@ -382,10 +382,11 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     
                     if gen in ['cnn', 'hr']:
                         x_tgt_in,x2_tgt_in,x_in= instance_norm(x_tgt), instance_norm(x2_tgt), instance_norm(x)  #MIDNIGHT 0215 #torch.Size([128, 3, 32, 32])
-                        #div_loss = (x_tgt_in - x2_tgt_in).abs().mean([1,2,3]).clamp(max=div_thresh).mean() # Constraint Generator Divergence #only using this = 10001
-                        #div_loss = (x_tgt_in - x_in).abs().mean([1,2,3]).clamp(max=div_thresh).mean() #run 10001 (excluding this) 
-                        div_loss = (x_tgt - x2_tgt).abs().mean([1,2,3]).clamp(max=div_thresh).mean() #include 10002
-                        div_loss += (H_tgt-H2_tgt).abs().mean([1,2]).clamp(max=div_thresh).mean()
+                        div_loss = (x_tgt - x2_tgt).abs().mean([1,2,3]).clamp(max=div_thresh).mean()
+                        #div_loss = (H_tgt-H2_tgt).abs().mean([1,2]).clamp(max=div_thresh).mean()
+                        #div_loss = (x_tgt_in - x2_tgt_in).abs().mean([1,2,3]).clamp(max=div_thresh).mean()
+                        #div_loss = (x_tgt - x2_tgt).abs().mean([1,2,3]).clamp(max=div_thresh).mean() + (H_tgt-H2_tgt).abs().mean([1,2]).clamp(max=div_thresh).mean() #run0,1
+                        #div_loss = (x_tgt_in - x2_tgt_in).abs().mean([1,2,3]).clamp(max=div_thresh).mean() + (H_tgt-H2_tgt).abs().mean([1,2]).clamp(max=div_thresh).mean() #run2
                         x_tgt_rec = g2_net(x_tgt)
                         cyc_loss = F.mse_loss(x_tgt_rec, x) 
                     elif gen == 'stn':

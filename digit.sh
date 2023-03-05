@@ -7,7 +7,7 @@ w_cls=1.0
 w_cyc=20
 w_info=0.1 
 w_oracle=1.0
-w_div=2.0 
+w_div=2.0 #2./1.0
 div_thresh=0.5 #0.5
 w_tgt=1.0
 
@@ -22,7 +22,7 @@ interpolation=img
 oracle=False
 oracle_type=ft
 
-data=mnist #mnist/cifar10/pacs
+data=mnist #mnist/cifar10/pac0
 backbone=custom #(custom)
 pretrained=False #Only to load right base model. my_iter process is set as pretrained=False.
 projection_dim=128 #default: (mnist: 128)
@@ -31,7 +31,7 @@ loss_fn=mdar #supcon/mdar/mdarv2
 batchsize=128 #default:128 -> 256
 
 # Model Load/Save Path
-svroot=saved-model/nye/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_lmda${lmda}_oracle${oracle}_${oracle_type}_${w_oracle}_run${2}
+svroot=saved-model/fix/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_lmda${lmda}_oracle${oracle}_${oracle_type}_${w_oracle}_run${2}
 baseroot=saved-model/${data}/base_${backbone}_${pretrained}_${projection_dim}_run0/best.pkl
 
 # step1

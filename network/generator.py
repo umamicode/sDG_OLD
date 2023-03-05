@@ -122,14 +122,16 @@ class cnnGenerator(nn.Module): #added noise after breakup
         self.mapz = nn.Linear(zdim, imsize[0]*imsize[1])
         if imsize == [32,32]:
             self.loc = nn.Sequential(
-                    nn.Conv2d( 4,  16, 5), nn.MaxPool2d(2), nn.ReLU(),
+                    nn.Conv2d( 3,  16, 5), nn.MaxPool2d(2), nn.ReLU(),
+                    #nn.Conv2d( 4,  16, 5), nn.MaxPool2d(2), nn.ReLU(), #MIDNIGHT
                     nn.Conv2d( 16, 32, 5), nn.MaxPool2d(2), nn.ReLU(),)
             self.fc_loc = nn.Sequential(
                     nn.Linear(32*5*5, 32), nn.ReLU(),
                     nn.Linear(32, 6))
         elif imsize == [224,224]:
             self.loc = nn.Sequential(
-                    nn.Conv2d(4,16,5,2), nn.MaxPool2d(2), nn.ReLU(),
+                    nn.Conv2d(3,16,5,2), nn.MaxPool2d(2), nn.ReLU(),
+                    #nn.Conv2d(4,16,5,2), nn.MaxPool2d(2), nn.ReLU(), #MIDNIGHT
                     nn.Conv2d(16,32,5,2), nn.MaxPool2d(2), nn.ReLU(),
                     nn.Conv2d(32,32,5,2),nn.ReLU()
             )
@@ -142,11 +144,25 @@ class cnnGenerator(nn.Module): #added noise after breakup
 
     def forward(self, x, rand=False, return_H= False): 
         ''' x '''
-                
+        '''       
         #STN
         z = torch.randn(len(x), self.zdim).cuda()
         z = self.mapz(z).view(len(x), 1, x.size(2), x.size(3))
         loc = self.loc(torch.cat([x, z], dim=1)) # [N, -1]
+        loc = loc.view(len(loc), -1)
+        H = self.fc_loc(loc)
+        H = H.view(len(H), 2, 3)
+        '''
+        #H[:,0,0] = 1 
+        #H[:,0,1] = 0 
+        #H[:,1,0] = 0 
+        #H[:,1,1] = 1 
+        '''
+        grid = F.affine_grid(H, x.size())
+        x = F.grid_sample(x, grid)
+        '''
+        
+        loc = self.loc(x)
         loc = loc.view(len(loc), -1)
         H = self.fc_loc(loc)
         H = H.view(len(H), 2, 3)
@@ -160,12 +176,10 @@ class cnnGenerator(nn.Module): #added noise after breakup
         x = F.grid_sample(x, grid)
         
         
-        
         #MIXSTYLE + Style-Transfer
         x = F.relu(self.conv1(x))
-        #x= self.mixstyle(x)
         x = F.relu(self.conv2(x))
-        #x= self.mixstyle(x)
+        x= self.mixstyle(x)
         
         if rand:
             z = torch.randn(len(x), self.zdim).cuda() #run1
@@ -174,7 +188,10 @@ class cnnGenerator(nn.Module): #added noise after breakup
             x= self.mixstyle(x)
             x = self.adain2(x, z)
         x = F.relu(self.conv3(x))
+        x= self.mixstyle(x)
         x = torch.sigmoid(self.conv4(x))
+                
+        
         if return_H:
             return x, H
         else:

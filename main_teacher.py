@@ -22,10 +22,11 @@ import copy
 
 
 from network import mnist_net, res_net, cifar_net, pacs_net
+from network.generator import MixStyle
 from network.modules import get_resnet, get_generator, freeze, unfreeze, freeze_, unfreeze_, LARS
 from main_test import evaluate_digit, evaluate_image, evaluate_pacs, evaluate_officehome
 import matplotlib.pyplot as plt
-from loss_functions import SupConLoss, MdarLoss, kl_divergence
+from loss_functions import SupConLoss, MdarLoss
 from tools.farmer import *
 from tools.miro_utils import *
 import data_loader
@@ -214,6 +215,7 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
     print("--Initializing Teacher Net for Mutual Information Maximization (From Scratch)")
     #Oracle Net version.1
     oracle_net= copy.deepcopy(cls_net)
+    prof_net= copy.deepcopy(cls_net)
     freeze("encoder",oracle_net)
     oracle_net.freeze_bn()
     oracle_net= oracle_net.cuda()
@@ -233,6 +235,24 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
         
         loss_list = []
         cls_net.train()
+        
+        if epoch == oracle_epoch:
+                #set Professor Net
+                #Progressive Mutual Information Regularization for Out-of-Domain generalization 
+                print("--Initializing Professor Net for Mutual Information Maximization (From Finetuned)")
+                #mPATH= os.path.join(svroot,'prof.pt')
+                #torch.save(cls_net.state_dict(), mPATH)
+                #Professor Net version.1
+                #prof_net.load_state_dict(torch.load(mPATH))
+                prof_net= copy.deepcopy(cls_net)
+                freeze("encoder",prof_net)
+                prof_net.freeze_bn()
+                prof_net= prof_net.cuda()
+                prof_net.oracle= True
+                prof_net.get_hook()
+        
+        
+        
         for i, (x, y) in enumerate(trloader):
             x, y = x.cuda(), y.cuda()
             
@@ -242,12 +262,15 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
             
             #ORACLE
             if epoch >= oracle_epoch:
+                
+                
                 with torch.no_grad():
                     h_oracle, intermediate_oracle = oracle_net(x, mode= 'encoder_intermediate')
+                    h_prof, intermediate_prof = oracle_net(x, mode= 'encoder_intermediate' )
                 h_source, intermediate_source = cls_net(x, mode= 'encoder_intermediate')
                 
                 
-                keeper= ['conv1','bn1','relu','maxpool','layer1','layer2','layer3']#'layer4']
+                keeper= ['conv1','bn1','relu','maxpool','layer1','layer2','layer3','layer4']
                 intermediate_oracle= {key: intermediate_oracle[key] for key in keeper}
                 intermediate_source= {key: intermediate_source[key] for key in keeper}
                 
@@ -272,22 +295,27 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
                     
                     vlb= (mean - pre_f).pow(2).div(var) + var.log()
                     oracle_loss += vlb.mean()/2
+                    
+                prof_tensors= torch.cat([h_prof.unsqueeze(1), h_source.unsqueeze(1)], dim=1)
+                prof_loss = con_criterion(prof_tensors, adv=False, standardize= True)    
+                
             else:
                 oracle_loss= torch.tensor(0)
+                prof_loss= torch.tensor(0)
             
             #loss update
-            loss= cls_loss + (w_oracle * oracle_loss)
+            loss= cls_loss + (w_oracle * oracle_loss) + (w_oracle * prof_loss)
             cls_opt.zero_grad()
             loss.backward()
             cls_opt.step()
             
-            loss_list.append([cls_loss.item(), oracle_loss.item()])
+            loss_list.append([cls_loss.item(), oracle_loss.item(), prof_loss.item()])
             
             # Adjust Learning Rate
             if lr_scheduler in ['cosine']:
                 scheduler.step()
 
-        cls_loss, oracle_loss = np.mean(loss_list, 0)
+        cls_loss, oracle_loss, prof_loss = np.mean(loss_list, 0)
         
 
         # Test and Save Optimal Model
@@ -301,9 +329,10 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
         '''
         # Save Log
         t2 = time.time()
-        print(f'epoch {epoch}, time {t2-t1:.2f}, cls_loss {cls_loss:.4f} oracle_loss {oracle_loss:.4f} teacc {teacc:2.2f}')
+        print(f'epoch {epoch}, time {t2-t1:.2f}, cls_loss {cls_loss:.4f} oracle_loss {oracle_loss:.4f} prof_loss {prof_loss:.4f} teacc {teacc:2.2f}')
         writer.add_scalar('scalar/cls_loss', cls_loss, epoch)
         writer.add_scalar('scalar/oracle_loss', oracle_loss, epoch)
+        writer.add_scalar('scalar/prof_loss', prof_loss, epoch)
         writer.add_scalar('scalar/teacc', teacc, epoch)
         
     torch.save({'cls_net':cls_net.state_dict()}, os.path.join(svroot, 'best.pkl'))

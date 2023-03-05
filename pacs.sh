@@ -7,7 +7,7 @@ w_cls=1.0
 w_cyc=20
 w_info=0.1 
 w_oracle=1.0 #1.0
-w_div=2.0 
+w_div=2.0 #1.0 #2.0
 div_thresh=0.5
 w_tgt=1.0
 
@@ -15,8 +15,8 @@ w_tgt=1.0
 #how about try smaller tgt 
 n_tgt=100 #20
 max_tgt=99 #19
-tgt_epochs_fixg=5 #15
-tgt_epochs=10 #30
+tgt_epochs_fixg=15 #15
+tgt_epochs=30 #30
 lmda=0.051 #lmda for adv-barlowtwins (0.051 best)
 
 gen=cnn
@@ -36,7 +36,7 @@ optimizer=adam #sgd/adam
 batchsize=16 #default:16 for pacs
 
 # Model Load/Save Path
-svroot=saved-model/uniform/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_lmda${lmda}_oracle${oracle}_${oracle_type}_${w_oracle}_lr${lr}_${lr_scheduler}_${optimizer}_run${2}
+svroot=saved-model/fix/${data}/${gen}_${interpolation}_${backbone}_${loss_fn}_${pretrained}_${projection_dim}_${w_cls}_${w_cyc}_${w_info}_${w_div}_${div_thresh}_${w_tgt}_lmda${lmda}_oracle${oracle}_${oracle_type}_${w_oracle}_lr${lr}_${lr_scheduler}_${optimizer}_run${2}
 baseroot=saved-model/${data}/base_${backbone}_${pretrained}_${projection_dim}_run0/best.pkl
 
 # step1
