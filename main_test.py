@@ -9,7 +9,7 @@ import numpy as np
 import click
 import pandas as pd
 
-from network import mnist_net, res_net , cifar_net, pacs_net
+from network import mnist_net, res_net , cifar_net, pacs_net, alex_net
 #{TODO} Added ResNet
 from network.modules import get_resnet
 from tools.farmer import *
@@ -172,6 +172,17 @@ def evaluate_pacs(gpu, modelpath, svpath, backbone, pretrained,projection_dim, c
             n_features = encoder.fc.in_features
             output_dim = 7 #pacs
             cls_net = res_net.ConvNet(encoder, projection_dim, n_features, output_dim, imdim=channels).cuda()
+    elif backbone in ['alexnet']:
+        if channels == 3:
+            encoder = get_resnet(backbone, pretrained= pretrained)
+            n_features = encoder.classifier[-1].in_features
+            output_dim = 7 #pacs
+            cls_net = alex_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda()
+        elif channels == 1:
+            encoder = get_resnet(backbone, pretrained= pretrained)
+            n_features = encoder.classifier[-1].in_features
+            output_dim = 7 #pacs
+            cls_net = alex_net.ConvNet(encoder, projection_dim, n_features, output_dim, imdim=channels).cuda()
     elif backbone in ['pacs_net']:
         if channels == 3:
             output_dim = 7 

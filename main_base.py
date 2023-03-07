@@ -19,7 +19,7 @@ import click
 import time
 import numpy as np
 
-from network import mnist_net, res_net, cifar_net, pacs_net
+from network import mnist_net, res_net, cifar_net, pacs_net, alex_net
 from network.modules import get_resnet, freeze, unfreeze, freeze_, unfreeze_ 
 from tools.farmer import *
 import data_loader
@@ -138,6 +138,15 @@ def experiment(gpu, data, ntr, translate, autoaug, epochs, nbatch, batchsize, lr
             n_features = encoder.fc.in_features
             output_dim= 7
             cls_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
+            if optimizer == 'adam':
+                cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
+            elif optimizer == 'sgd':
+                cls_opt = optim.SGD(cls_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)
+        elif backbone in ['alexnet']:
+            encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
+            n_features = encoder.classifier[-1].in_features
+            output_dim= 7
+            cls_net= alex_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
             if optimizer == 'adam':
                 cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
             elif optimizer == 'sgd':

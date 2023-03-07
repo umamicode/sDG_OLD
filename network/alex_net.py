@@ -37,8 +37,8 @@ class ConvNet(nn.Module):
         self.fhooks=[]
         
         # Replace the fc layer with an Identity function
-        self.encoder.fc = Identity()
-        
+        self.encoder.classifier[-1] = Identity() #model.classifier[6]
+        #n_features = encoder.classifier[-1].in_features
         self.cls_head_src = nn.Linear(self.n_features, self.output_dim)
         
         #self.cls_head_tgt = nn.Linear(self.n_features, self.output_dim)        
@@ -100,9 +100,3 @@ class ConvNet(nn.Module):
         elif mode == 'encoder_intermediate':
             encoded = F.normalize(encoded) #this does not effect accuracy
             return encoded, self.selected_out
-        elif mode == 'oracle':
-            p= self.cls_head_src(encoded)
-            z = self.pro_head(encoded)
-            z = F.normalize(z)
-            encoded = F.normalize(encoded)
-            return p, z, encoded, self.selected_out
