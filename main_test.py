@@ -9,7 +9,7 @@ import numpy as np
 import click
 import pandas as pd
 
-from network import mnist_net, res_net , cifar_net, pacs_net, alex_net
+from network import mnist_net, res_net , cifar_net, alex_net, vit_net, reg_net
 #{TODO} Added ResNet
 from network.modules import get_resnet
 from tools.farmer import *
@@ -114,6 +114,11 @@ def evaluate_image(gpu, modelpath, svpath, backbone, pretrained,projection_dim,c
         elif channels == 1:
             output_dim = 10 
             cls_net = cifar_net.ConvNet(projection_dim=projection_dim, output_dim=output_dim,imdim=channels).cuda()
+    elif backbone in ['regnet','regnet_large']:
+            encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
+            n_features = encoder.fc.in_features
+            output_dim= 10
+            cls_net= reg_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() #projection_dim/ n_features
     
     
     saved_weight = torch.load(modelpath) #dict(saved_weight) only has cls_net as key
@@ -175,7 +180,7 @@ def evaluate_pacs(gpu, modelpath, svpath, backbone, pretrained,projection_dim, c
     elif backbone in ['alexnet']:
         if channels == 3:
             encoder = get_resnet(backbone, pretrained= pretrained)
-            n_features = encoder.classifier[-1].in_features
+            n_features = encoder.classifier[1].in_features
             output_dim = 7 #pacs
             cls_net = alex_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda()
         elif channels == 1:
@@ -183,13 +188,28 @@ def evaluate_pacs(gpu, modelpath, svpath, backbone, pretrained,projection_dim, c
             n_features = encoder.classifier[-1].in_features
             output_dim = 7 #pacs
             cls_net = alex_net.ConvNet(encoder, projection_dim, n_features, output_dim, imdim=channels).cuda()
-    elif backbone in ['pacs_net']:
+    elif backbone in ['vit']:
         if channels == 3:
-            output_dim = 7 
-            cls_net = pacs_net.ConvNet(projection_dim=projection_dim, output_dim=output_dim).cuda()
+            encoder = get_resnet(backbone, pretrained= pretrained)
+            n_features = encoder.heads.head.in_features
+            output_dim = 7 #pacs
+            cls_net = vit_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda()
         elif channels == 1:
-            output_dim = 7 
-            cls_net = cifar_net.ConvNet(projection_dim=projection_dim, output_dim=output_dim,imdim=channels).cuda()
+            encoder = get_resnet(backbone, pretrained= pretrained)
+            n_features = encoder.heads.head.in_features
+            output_dim = 7 #pacs
+            cls_net = vit_net.ConvNet(encoder, projection_dim, n_features, output_dim, imdim=channels).cuda()
+    elif backbone in ['regnet','regnet_large']:
+        if channels == 3:
+            encoder = get_resnet(backbone, pretrained= pretrained)
+            n_features = encoder.fc.in_features
+            output_dim = 7 #pacs
+            cls_net = reg_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda()
+        elif channels == 1:
+            encoder = get_resnet(backbone, pretrained= pretrained)
+            n_features = encoder.fc.in_features
+            output_dim = 7 #pacs
+            cls_net = reg_net.ConvNet(encoder, projection_dim, n_features, output_dim, imdim=channels).cuda()
 
     saved_weight = torch.load(modelpath) #dict(saved_weight) only has cls_net as key
     cls_net.load_state_dict(saved_weight['cls_net'])
@@ -208,7 +228,7 @@ def evaluate_pacs(gpu, modelpath, svpath, backbone, pretrained,projection_dim, c
             teset = str2fun[data]('test', channels=channels)
         elif data in ['art','cartoon','sketch']:
             teset= str2fun[data](split= data,channels=channels)
-        teloader = DataLoader(teset, batch_size=128, num_workers=8,drop_last=True, shuffle=True) #solved error with drop_last/ added shuffle=True(11/25)
+        teloader = DataLoader(teset, batch_size=128, num_workers=8,drop_last=True, shuffle=False) #solved error with drop_last/ added shuffle=True(11/25)
         '''
         <Solved Error>
         ValueError: Expected more than 1 value per channel when training, got input size torch.Size([1, 512, 1, 1])
@@ -261,7 +281,7 @@ def evaluate_officehome(gpu, modelpath, svpath, backbone, pretrained,projection_
             teset = str2fun[data]('test', channels=channels)
         elif data in ['Art','Clipart','Product']:
             teset= str2fun[data](domain= data,channels=channels)
-        teloader = DataLoader(teset, batch_size=128, num_workers=8,drop_last=True, shuffle=True) #solved error with drop_last/ added shuffle=True(11/25)
+        teloader = DataLoader(teset, batch_size=128, num_workers=8,drop_last=True, shuffle=False) #solved error with drop_last/ added shuffle=True(11/25)
         '''
         <Solved Error>
         ValueError: Expected more than 1 value per channel when training, got input size torch.Size([1, 512, 1, 1])

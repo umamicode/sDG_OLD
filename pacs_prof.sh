@@ -6,7 +6,7 @@
 w_cls=1.0
 w_cyc=20
 w_info=0.1 
-w_oracle=1.0 #1.0
+w_oracle=2.0 #1.0
 w_div=2.0 #1.0 #2.0
 div_thresh=0.5
 w_tgt=1.0
@@ -22,7 +22,7 @@ lmda=0.051 #lmda for adv-barlowtwins (0.051 best)
 gen=cnn
 interpolation=img
 oracle=True
-oracle_type=ft #ft/scratch/prof
+oracle_type=prof #ft/scratch/prof
 
 data=pacs 
 backbone=resnet18 #(resnet18/resnet50/wideresnet) 

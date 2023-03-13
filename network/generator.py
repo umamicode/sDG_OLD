@@ -134,6 +134,7 @@ class cnnGenerator(nn.Module): #added noise after breakup
             
         elif imsize == [224,224]:
             
+            '''
             self.loc = nn.Sequential(
                     nn.Conv2d(3,16,5), nn.MaxPool2d(2), nn.ReLU(),
                     nn.Conv2d(16,64,5), nn.MaxPool2d(2), nn.ReLU(),
@@ -148,39 +149,34 @@ class cnnGenerator(nn.Module): #added noise after breakup
             self.fc_loc[4].weight.data.zero_()
             self.fc_loc[4].bias.data.copy_(torch.tensor([1,0,0,0,1,0]))
             '''
+            
             self.loc = nn.Sequential(
                     nn.Conv2d(3,16,5,2), nn.MaxPool2d(2), nn.ReLU(),
-                    #nn.Conv2d(4,16,5,2), nn.MaxPool2d(2), nn.ReLU(), #MIDNIGHT
                     nn.Conv2d(16,32,5,2), nn.MaxPool2d(2), nn.ReLU(),
                     nn.Conv2d(32,32,5,2),nn.ReLU()
             )
             self.fc_loc = nn.Sequential(
                     nn.Linear(32*5*5, 32), nn.ReLU(),
                     nn.Linear(32, 6))
-            '''
-        # weight initialization
-        #self.fc_loc[2].weight.data.zero_()
-        #self.fc_loc[2].bias.data.copy_(torch.tensor([1,0,0,0,1,0]))
+                    
+            self.fc_loc[2].weight.data.zero_()
+            self.fc_loc[2].bias.data.copy_(torch.tensor([1,0,0,0,1,0]))
 
     def forward(self, x, rand=False, return_H= False): 
-        ''' x '''
                
-
         #STN
         loc = self.loc(x)
         loc = loc.view(len(loc), -1)
         H = self.fc_loc(loc)
         H = H.view(len(H), 2, 3)
-        
+        # Restrict Affine Transformation to Affine Translation
         H[:,0,0] = 1 
         H[:,0,1] = 0 
         H[:,1,0] = 0 
         H[:,1,1] = 1 
         
         grid = F.affine_grid(H, x.size())
-        x = F.grid_sample(x, grid, align_corners=False) #uncomment this
-        #stn_x= F.grid_sample(x, grid) #erase this
-        
+        x = F.grid_sample(x, grid, align_corners=False) #uncomment this        
         
         #MIXSTYLE + Style-Transfer
         x = F.relu(self.conv1(x))
@@ -189,14 +185,14 @@ class cnnGenerator(nn.Module): #added noise after breakup
         
         if rand:
             z = torch.randn(len(x), self.zdim).cuda() #run1
-            #z = torch.randn(1, self.zdim).cuda() #run0
-            #z= z.repeat(len(x), 1) #run0
-            x= self.mixstyle(x)
+            
+            #x= self.mixstyle(x) #commented this (03/08/2023)
             x = self.adain2(x, z)
         x = F.relu(self.conv3(x))
         x= self.mixstyle(x)
         x = torch.sigmoid(self.conv4(x))
-                        
+        
+        
         if return_H:
             return x, H
         

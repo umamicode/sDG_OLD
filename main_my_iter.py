@@ -16,7 +16,7 @@ import numpy as np
 import copy
 
 from loss_functions import SupConLoss, MdarLoss, MdarLossV2
-from network import mnist_net, res_net, alex_net, cifar_net, generator
+from network import mnist_net, res_net, alex_net, cifar_net, vit_net, reg_net, generator
 from network.modules import get_resnet, get_generator, freeze, unfreeze, freeze_, unfreeze_, LARS
 from network.modules.batchinstance_norm import BatchInstanceNorm2d
 from tools.miro_utils import *
@@ -168,7 +168,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
         elif backbone in ['alexnet']:
             encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
-            n_features = encoder.classifier[-1].in_features #4096
+            n_features = encoder.classifier[1].in_features #4096
             output_dim= 7
             src_net= alex_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() 
             saved_weight = torch.load(ckpt)
@@ -223,15 +223,21 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         
         elif oracle_type == 'prof':
             
-            print("--Initializing Teacher Net for Mutual Information Maximization (Never Seen Before)")
-            encoder = get_resnet('wideresnet', pretrained='True') # Pretrained Backbone default as False - We will load our model anyway
+            print("--Initializing Teacher Net for Mutual Information Maximization (PROF)")
+            encoder = get_resnet('regnet_large', pretrained='True') 
             n_features = encoder.fc.in_features
-            output_dim = output_dim #10 
-            oracle_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() 
+            output_dim = output_dim 
+            oracle_net= reg_net.ConvNet(encoder, 2048, n_features, output_dim).cuda()
+            saved_weight = torch.load('saved-model/prof/pacs/base_regnet_large_True_2048_run0/best.pkl')
+            oracle_net.load_state_dict(saved_weight['cls_net'])
             freeze("encoder",oracle_net)
             oracle_net.oracle= True
-        
-        
+            '''
+            if optimizer == 'adam':
+                cls_opt = optim.Adam(cls_net.parameters(), lr=lr)
+            elif optimizer == 'sgd':
+                cls_opt = optim.SGD(cls_net.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=5e-4)
+            '''
         
         #Get Hooks (Currently only in resnet)
         oracle_net.get_hook()
@@ -268,7 +274,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             
             src_net.train() 
             for i, (x, y) in enumerate(trloader):  
-
+                
                 x, y = x.cuda(), y.cuda()
         
                 # Data Augmentation
@@ -301,43 +307,44 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     x_tgt, H_tgt = g1_net(x, rand=True, return_H=True)
                     x2_tgt, H2_tgt = g1_net(x, rand=True, return_H=True)
 
-
                 # forward
                 if (oracle == 'False'):
                     p1_src, z1_src = src_net(x, mode='train') #z1- torch.Size([128, 128])
                 
                 # oracle forward
-                if (oracle == 'True'):      
-                    if oracle_type == 'prof':
-                        with torch.no_grad():
+                if (oracle == 'True'):    
+                    #if (tgt_epochs_fixg is not None) and (epoch >= tgt_epochs_fixg):  
+                    if flag_fixG: #only source
+                        if oracle_type == 'prof':
+                            with torch.no_grad():
+                                p_oracle, z_oracle = oracle_net(x, mode= 'train')   
                             p1_src, z1_src = src_net(x, mode='train')
-                            p_oracle, z_oracle = oracle_net(x, mode= 'train')       
-                    elif oracle_type in ['ft','scratch']:                                           
-                        #after dinner
-                        
-                        with torch.no_grad():
-                            #h_oracle, intermediate_oracle = oracle_net(x, mode= 'encoder_intermediate')
-                            p_oracle, z_oracle, h_oracle, intermediate_oracle= oracle_net(x, mode= 'oracle')
-                        #h_source, intermediate_source = src_net(x, mode= 'encoder_intermediate')
-                        p1_src, z1_src, h_source, intermediate_source = src_net(x, mode= 'oracle')
-                        
-                        
-                        
-                        keeper= ['conv1','bn1','relu','maxpool','layer1','layer2','layer3','layer4']
-                        intermediate_oracle= {key: intermediate_oracle[key] for key in keeper} #F.normalize run47
-                        intermediate_source= {key: intermediate_source[key] for key in keeper} #F.normalize run47
-                
-                
-                        shapes= [list(intermediate_oracle[i].shape) for i in intermediate_oracle.keys()]
-                        intermediate_oracle= intermediate_oracle.values()
-                        intermediate_source= intermediate_source.values()
-                        
-                        #Generate Mean/Variance Encoders
-                        if not mean_encoders:
-                            mean_encoders = nn.ModuleList([MeanEncoder(shape) for shape in shapes])
-                        if not var_encoders:
-                            var_encoders = nn.ModuleList([VarianceEncoder(shape) for shape in shapes])
+                              
+                        elif oracle_type in ['ft','scratch']:                                           
+                            with torch.no_grad():
+                                #h_oracle, intermediate_oracle = oracle_net(x, mode= 'encoder_intermediate')
+                                p_oracle, z_oracle, h_oracle, intermediate_oracle= oracle_net(x, mode= 'oracle')
+                            #h_source, intermediate_source = src_net(x, mode= 'encoder_intermediate')
+                            p1_src, z1_src, h_source, intermediate_source = src_net(x, mode= 'oracle')
+                            
+                            '''
+                            keeper= ['conv1','bn1','relu','maxpool','layer1','layer2','layer3','layer4']
+                            intermediate_oracle= {key: intermediate_oracle[key] for key in keeper} #F.normalize run47
+                            intermediate_source= {key: intermediate_source[key] for key in keeper} #F.normalize run47
                     
+                            shapes= [list(intermediate_oracle[i].shape) for i in intermediate_oracle.keys()]
+                            intermediate_oracle= intermediate_oracle.values()
+                            intermediate_source= intermediate_source.values()
+                            
+                            #Generate Mean/Variance Encoders
+                            if not mean_encoders:
+                                mean_encoders = nn.ModuleList([MeanEncoder(shape) for shape in shapes])
+                            if not var_encoders:
+                                var_encoders = nn.ModuleList([VarianceEncoder(shape) for shape in shapes])
+                            '''
+                        
+                    else: #both source,gen
+                        p1_src, z1_src = src_net(x, mode='train')
                     
                 
                 if len(g1_list)>0: # if generator exists
@@ -361,12 +368,11 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 con_loss = con_criterion(zall, adv=False)
                 
                 #oracle
-                if (oracle == 'True'):
+                if (oracle == 'True') and flag_fixG: ##ADDED before meeting
                     #oracle_tensors are not normalized (dim=1).
                     
                     '''
                     oracle_loss= 0.
-                    
                     #MIRO
                     for f, pre_f, mean_enc, var_enc in zip_strict(intermediate_source,intermediate_oracle,mean_encoders,var_encoders):
                         mean= mean_enc(f) 
@@ -378,18 +384,20 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                         oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_source.unsqueeze(1)], dim=1)
                         oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True)
                     elif oracle_type in ['prof']:
-                        #oracle_tensors= torch.cat([z_oracle.unsqueeze(1), z1_src.unsqueeze(1)], dim=1)
-                        #oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True)
-                        oracle_loss = torch.tensor(0)
-                    T= 1.5
-                    kullback_loss = kl_loss(F.softmax(p1_src/T).log(), F.softmax(p_oracle/T))
-                    oracle_loss += kullback_loss
+                        T= 4.0# + (0.5 * epoch) 
+                        #print("oracle: {c}".format(c= F.softmax(p_oracle)))
+                        #print("source: {c}".format(c= F.softmax(p1_src)))
+                        #print(y)
+                        #print("=========")
+                        
+
+                        oracle_loss = kl_loss(F.softmax(p1_src/T, dim=1).log(), F.softmax(p_oracle/T, dim=1)) * T *T # run2,4 has no T**2, #run 22,44 has T**2
                      #standardize true showed better results
-                     
+                elif (oracle == 'True') and (not flag_fixG): #ADDED before meeting
+                    oracle_loss = torch.tensor(0)    
                     
                 #Source Task Model Loss
                 loss = src_cls_loss + w_tgt*tgt_cls_loss + w_tgt*con_loss  
-                #loss = src_cls_loss + w_tgt*con_loss #run3/nye
                 
                 #Oracle Loss 
                 if (oracle == 'True'):
@@ -422,8 +430,6 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     if gen in ['cnn', 'hr']:
                         x_tgt_in,x2_tgt_in,x_in= instance_norm(x_tgt), instance_norm(x2_tgt), instance_norm(x)  #MIDNIGHT 0215 #torch.Size([128, 3, 32, 32])
                         div_loss = (x_tgt - x2_tgt).abs().mean([1,2,3]).clamp(max=div_thresh).mean()
-                        #div_loss = (H_tgt-H2_tgt).abs().mean([1,2]).clamp(max=div_thresh).mean()
-                        #div_loss = (x_tgt_in - x2_tgt_in).abs().mean([1,2,3]).clamp(max=div_thresh).mean()
                         #div_loss = (x_tgt - x2_tgt).abs().mean([1,2,3]).clamp(max=div_thresh).mean() + (H_tgt-H2_tgt).abs().mean([1,2]).clamp(max=div_thresh).mean() #run0,1
                         #div_loss = (x_tgt_in - x2_tgt_in).abs().mean([1,2,3]).clamp(max=div_thresh).mean() + (H_tgt-H2_tgt).abs().mean([1,2]).clamp(max=div_thresh).mean() #run2
                         x_tgt_rec = g2_net(x_tgt)

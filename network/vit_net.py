@@ -37,8 +37,7 @@ class ConvNet(nn.Module):
         self.fhooks=[]
         
         # Replace the fc layer with an Identity function
-        self.encoder.classifier= self.encoder.classifier[:2]
-        self.encoder.classifier[-1] = Identity() #model.classifier[6]
+        self.encoder.heads.head = Identity() #model.classifier[6]
         #n_features = encoder.classifier[-1].in_features
         self.cls_head_src = nn.Linear(self.n_features, self.output_dim)
         

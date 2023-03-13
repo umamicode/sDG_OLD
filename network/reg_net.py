@@ -37,8 +37,7 @@ class ConvNet(nn.Module):
         self.fhooks=[]
         
         # Replace the fc layer with an Identity function
-        self.encoder.classifier= self.encoder.classifier[:2]
-        self.encoder.classifier[-1] = Identity() #model.classifier[6]
+        self.encoder.fc = Identity() #model.classifier[6]
         #n_features = encoder.classifier[-1].in_features
         self.cls_head_src = nn.Linear(self.n_features, self.output_dim)
         
@@ -80,19 +79,15 @@ class ConvNet(nn.Module):
         in_size = x.size(0)
         
         encoded= self.encoder(x)
-        #F.log_softmax(self.cls_head_src(out4), dim=-1)
         if mode == 'test':
-            #p = self.cls_head_src(out4)
             p= self.cls_head_src(encoded)
             return p
         elif mode == 'train':
-            #p = self.cls_head_src(out4)
             p= self.cls_head_src(encoded)
             z = self.pro_head(encoded)
             z = F.normalize(z) #dim=1 normalized
             return p,z
         elif mode == 'p_f':
-            #p = self.cls_head_src(out4)
             p= self.cls_head_src(encoded)
             return p, out4
         elif mode == 'encoder':
