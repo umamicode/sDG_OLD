@@ -6,9 +6,9 @@
 data=pacs #(mnist/cifar10/pacs)
 backbone=alexnet #(pacs_net/resnet18/resnet50/wideresnet/alexnet) 
 pretrained=True
-projection_dim=2048 #resnet18:512, alexnet=4096
-epochs=50 #default:5/200
-batchsize=32 #16
+projection_dim=512 #resnet18:512, alexnet=4096
+epochs=30 #default:5/200
+batchsize=16 #16
 
 lr=1e-4 # for pacs 1e-4
 lr_scheduler=step #none/cosine/step

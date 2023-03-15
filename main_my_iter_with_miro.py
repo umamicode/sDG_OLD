@@ -168,13 +168,12 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
         elif backbone in ['alexnet']:
             encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
-            n_features = encoder.classifier[-1].in_features #4096
+            n_features = encoder.classifier[1].in_features #4096
             output_dim= 7
             src_net= alex_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() 
             saved_weight = torch.load(ckpt)
             src_net.load_state_dict(saved_weight['cls_net'])
             src_opt = optim.Adam(src_net.parameters(), lr=lr)
-            
     #OfficeHome
     elif data in ['officehome']:
         if backbone in ['resnet18','resnet50','wideresnet']:
@@ -203,7 +202,26 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     #Create Oracle Model    
     if (oracle == 'True'):
         
-        if oracle_type == 'prof':
+        #Oracle Net version.1
+        if oracle_type == 'ft':
+            print("--Initializing Teacher Net for Mutual Information Maximization (From Finetuned)")
+            oracle_net= copy.deepcopy(src_net)
+            freeze("all",oracle_net)
+            oracle_net= oracle_net.cuda()
+            oracle_net.oracle= True
+        
+        #Oracle Net Version.2
+        elif oracle_type == 'scratch':
+        
+            print("--Initializing Teacher Net for Mutual Information Maximization (From Scratch)")
+            encoder = get_resnet(backbone, pretrained='True') # Pretrained Backbone default as False - We will load our model anyway
+            n_features = encoder.fc.in_features
+            output_dim = output_dim #10 
+            oracle_net= res_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda() 
+            freeze("all",oracle_net)
+            oracle_net.oracle= True
+        
+        elif oracle_type == 'prof':
             
             print("--Initializing Teacher Net for Mutual Information Maximization (PROF)")
             encoder = get_resnet('regnet_large', pretrained='True') 
@@ -294,17 +312,35 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     #if (tgt_epochs_fixg is not None) and (epoch >= tgt_epochs_fixg):  
                     if flag_fixG: #only source
                         if oracle_type == 'prof':
-                             
-                            p_oracle, h_oracle = oracle_net(x, mode= 'prof')  
-                            p1_src, z1_src, h_src = src_net(x, mode='prof')
+                            #with torch.no_grad():
+                            #    p_oracle, z_oracle = oracle_net(x, mode= 'train') 
+                            p_oracle, z_oracle = oracle_net(x, mode= 'prof')  
+                            p1_src, z1_src = src_net(x, mode='train')
                               
-                        
+                        elif oracle_type in ['ft','scratch']:                                           
+                            with torch.no_grad():
+                                p_oracle, z_oracle, h_oracle, intermediate_oracle= oracle_net(x, mode= 'oracle')
+                            p1_src, z1_src, h_source, intermediate_source = src_net(x, mode= 'oracle')
+                            
+                            '''
+                            keeper= ['conv1','bn1','relu','maxpool','layer1','layer2','layer3','layer4']
+                            intermediate_oracle= {key: intermediate_oracle[key] for key in keeper} #F.normalize run47
+                            intermediate_source= {key: intermediate_source[key] for key in keeper} #F.normalize run47
+                    
+                            shapes= [list(intermediate_oracle[i].shape) for i in intermediate_oracle.keys()]
+                            intermediate_oracle= intermediate_oracle.values()
+                            intermediate_source= intermediate_source.values()
+                            
+                            #Generate Mean/Variance Encoders
+                            if not mean_encoders:
+                                mean_encoders = nn.ModuleList([MeanEncoder(shape) for shape in shapes])
+                            if not var_encoders:
+                                var_encoders = nn.ModuleList([VarianceEncoder(shape) for shape in shapes])
+                            '''
                         
                     else: #both source,gen
-                        #p1_src, z1_src = src_net(x, mode='train') #always awake
-                        #always awake
-                        p_oracle, h_oracle = oracle_net(x, mode= 'prof')  
-                        p1_src, z1_src, h_src = src_net(x, mode='prof')
+                        p1_src, z1_src = src_net(x, mode='train')
+                    
                 
                 if len(g1_list)>0: # if generator exists
                     p2_src, z2_src = src_net(x2_src, mode='train') #z2- torch.Size([128, 128])
@@ -330,32 +366,29 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 if (oracle == 'True') and flag_fixG: ##ADDED before meeting
                     #oracle_tensors are not normalized (dim=1).
                     
-                    if oracle_type in ['prof']:
-                        
-                        
-                        #mutual information regularization
-                        
-                        #mean = torch.mean(h_src)
-                        #var = torch.var(h_src)
-                        #vlb = (mean - h_oracle).pow(2).div(var) + var.log()
-                        #vlb = vlb.mean()/2.
-                        #oracle_loss= vlb
-                        
-                        
-                        oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_src.unsqueeze(1)], dim=1)
+                    '''
+                    oracle_loss= 0.
+                    #MIRO
+                    for f, pre_f, mean_enc, var_enc in zip_strict(intermediate_source,intermediate_oracle,mean_encoders,var_encoders):
+                        mean= mean_enc(f) 
+                        var= var_enc(f).cuda() #idk why but not in gpu
+                        vlb= (mean - pre_f).pow(2).div(var) + var.log()
+                        oracle_loss += vlb.mean()/ 2.
+                    '''
+                    if oracle_type in ['scratch','ft']:
+                        oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_source.unsqueeze(1)], dim=1)
                         oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True)
-                        
-                        #T= 10.0
-                        #oracle_loss = kl_loss(F.softmax(p1_src/T, dim=1).log(), F.softmax(p_oracle/T, dim=1)) * T *T # run2,4 has no T**2, #run 22,44 has T**2
-                        
+                    elif oracle_type in ['prof']:
+                        T= 4.0# + (0.5 * epoch) 
+                        oracle_loss = kl_loss(F.softmax(p1_src/T, dim=1).log(), F.softmax(p_oracle/T, dim=1)) * T *T # run2,4 has no T**2, #run 22,44 has T**2
+                        print("prof: {c}".format(c= p_oracle))
+                        print("source:{c}".format(c= p1_src))
+                        print("label:{y}".format(y= y))
+                        print("======")
                         
                      #standardize true showed better results
                 elif (oracle == 'True') and (not flag_fixG): #ADDED before meeting
-                    #oracle_loss = torch.tensor(0)    #always awake 
-                    
-                    #always awake
-                    oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_src.unsqueeze(1)], dim=1)
-                    oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True)
+                    oracle_loss = torch.tensor(0)    
                     
                 #Source Task Model Loss
                 loss = src_cls_loss + w_tgt*tgt_cls_loss + w_tgt*con_loss  
@@ -367,7 +400,6 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     oracle_loss= torch.tensor(0)
                 
                 src_opt.zero_grad()
-                oracle_opt.zero_grad()
                 if flag_fixG:
                     loss.backward()
                 else:

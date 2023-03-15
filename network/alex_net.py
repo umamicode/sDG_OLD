@@ -35,24 +35,24 @@ class ConvNet(nn.Module):
         self.oracle= oracle
         self.selected_out = OrderedDict()
         self.fhooks=[]
+        self.buffer_features= 7392
         
-        # Replace the fc layer with an Identity function
-        self.encoder.classifier= self.encoder.classifier[:2]
+        
         self.encoder.classifier[-1] = Identity() #model.classifier[6]
-        #n_features = encoder.classifier[-1].in_features
+        self.encoder_features=  encoder.classifier[1].in_features
+        
+        self.buffer = nn.Sequential(
+            nn.Linear(self.encoder_features, self.buffer_features, bias=False))
+        self.encoder.classifier[1]=  nn.Linear(self.buffer_features, self.encoder.classifier[1].out_features)
         self.cls_head_src = nn.Linear(self.n_features, self.output_dim)
-        
-        #self.cls_head_tgt = nn.Linear(self.n_features, self.output_dim)        
-        #[TODO]- MLP for Contrastive Learning -Following model design of BarlowTwins Paper
-        
         self.pro_head = nn.Sequential(
-            nn.Linear(self.n_features, self.n_features, bias=False),  #self.n_features -> self.projection_dim
-            nn.BatchNorm1d(self.n_features),
+            nn.Linear(self.buffer_features, self.buffer_features, bias=False),  #self.n_features -> self.projection_dim
+            nn.BatchNorm1d(self.buffer_features),
             nn.ReLU(),
-            nn.Linear(self.n_features, self.n_features, bias=False),  #self.n_features -> self.projection_dim
-            nn.BatchNorm1d(self.n_features),
+            nn.Linear(self.buffer_features, self.buffer_features, bias=False),  #self.n_features -> self.projection_dim
+            nn.BatchNorm1d(self.buffer_features),
             nn.ReLU(),
-            nn.Linear(self.n_features, self.projection_dim, bias=False) #self.n_features,self.projection_dim -> self.projection_dim,self.projection_dim
+            nn.Linear(self.buffer_features, self.projection_dim, bias=False) #self.n_features,self.projection_dim -> self.projection_dim,self.projection_dim
         )
     
     def get_hook(self):   
@@ -78,26 +78,33 @@ class ConvNet(nn.Module):
         
     def forward(self, x, mode='test'):
         in_size = x.size(0)
+        x=self.encoder.features(x)
+        x=self.encoder.avgpool(x)
+        x=torch.flatten(x,1)
+        encoded=self.buffer(x)
         
-        encoded= self.encoder(x)
-        #F.log_softmax(self.cls_head_src(out4), dim=-1)
+        
+        #encoded= self.encoder(x)
         if mode == 'test':
-            #p = self.cls_head_src(out4)
-            p= self.cls_head_src(encoded)
+            cls_encoded= self.encoder.classifier(encoded)
+            p= self.cls_head_src(cls_encoded)
             return p
         elif mode == 'train':
-            #p = self.cls_head_src(out4)
-            p= self.cls_head_src(encoded)
+            cls_encoded= self.encoder.classifier(encoded)
+            p= self.cls_head_src(cls_encoded)
             z = self.pro_head(encoded)
             z = F.normalize(z) #dim=1 normalized
             return p,z
-        elif mode == 'p_f':
-            #p = self.cls_head_src(out4)
-            p= self.cls_head_src(encoded)
-            return p, out4
         elif mode == 'encoder':
             encoded = F.normalize(encoded) #this does not effect accuracy
             return encoded
         elif mode == 'encoder_intermediate':
             encoded = F.normalize(encoded) #this does not effect accuracy
             return encoded, self.selected_out
+        elif mode == 'prof':
+            cls_encoded= self.encoder.classifier(encoded)
+            p= self.cls_head_src(cls_encoded) 
+            z = self.pro_head(encoded)
+            z = F.normalize(z)
+            encoded = F.normalize(encoded)
+            return p,z,encoded

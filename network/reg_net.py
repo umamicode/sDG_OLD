@@ -53,7 +53,6 @@ class ConvNet(nn.Module):
             nn.ReLU(),
             nn.Linear(self.n_features, self.projection_dim, bias=False) #self.n_features,self.projection_dim -> self.projection_dim,self.projection_dim
         )
-    
     def get_hook(self):   
         for i,l in enumerate(list(self.encoder._modules.keys())):
             self.fhooks.append(getattr(self.encoder,l).register_forward_hook(self.forward_hook(l)))
@@ -77,6 +76,15 @@ class ConvNet(nn.Module):
         
     def forward(self, x, mode='test'):
         in_size = x.size(0)
+        
+        if mode == 'prof':
+            with torch.no_grad():
+                encoded= self.encoder(x)
+            p= self.cls_head_src(encoded)
+            #z = self.pro_head(encoded)
+            #z = F.normalize(z) #dim=1 normalized
+            encoded= F.normalize(encoded)
+            return p, encoded
         
         encoded= self.encoder(x)
         if mode == 'test':

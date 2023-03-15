@@ -180,7 +180,7 @@ def evaluate_pacs(gpu, modelpath, svpath, backbone, pretrained,projection_dim, c
     elif backbone in ['alexnet']:
         if channels == 3:
             encoder = get_resnet(backbone, pretrained= pretrained)
-            n_features = encoder.classifier[1].in_features
+            n_features = encoder.classifier[-1].in_features
             output_dim = 7 #pacs
             cls_net = alex_net.ConvNet(encoder, projection_dim, n_features, output_dim).cuda()
         elif channels == 1:
