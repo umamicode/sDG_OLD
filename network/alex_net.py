@@ -35,7 +35,7 @@ class ConvNet(nn.Module):
         self.oracle= oracle
         self.selected_out = OrderedDict()
         self.fhooks=[]
-        self.buffer_features= 7392
+        self.buffer_features= 3024 #3024/7392
         
         
         self.encoder.classifier[-1] = Identity() #model.classifier[6]

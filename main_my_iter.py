@@ -59,7 +59,7 @@ HOME = os.environ['HOME']
 @click.option('--pretrained', type=str, default= 'False', help= 'Pretrained Backbone - ResNet18/50, Custom MNISTnet does not matter')
 @click.option('--projection_dim', type=int, default=128, help= "Projection Dimension of the representation vector for Resnet; Default: 128")
 @click.option('--oracle', type=str, default='False', help= "Oracle Model for large pretrained models")
-@click.option('--oracle_type', type=str, default='ft', help= "(ft/scratch) Oracle Model From Finetuned/Scratch")
+@click.option('--oracle_type', type=str, default='ft', help= "(regnet/regnet_large) Oracle Model Type")
 @click.option('--optimizer', type=str, default='adam', help= "adam/sgd")
 
 
@@ -203,9 +203,9 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     #Create Oracle Model    
     if (oracle == 'True'):
         
-        if oracle_type == 'prof':
-            
-            print("--Initializing Teacher Net for Mutual Information Maximization (PROF)")
+        if oracle_type == 'regnet_large':
+            #7392
+            print("--Initializing PROF Net for Mutual Information Maximization (Regnet-Large)")
             encoder = get_resnet('regnet_large', pretrained='True') 
             n_features = encoder.fc.in_features
             output_dim = output_dim 
@@ -215,13 +215,26 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
             freeze("encoder",oracle_net)
             oracle_net.oracle= True
             oracle_opt = optim.Adam(oracle_net.parameters(), lr=lr)
-            
+        
+        if oracle_type == 'regnet':
+            #3024
+            print("--Initializing PROF Net for Mutual Information Maximization (Regnet)")
+            encoder = get_resnet('regnet', pretrained='True') 
+            n_features = encoder.fc.in_features
+            output_dim = output_dim 
+            oracle_net= reg_net.ConvNet(encoder, 2048, n_features, output_dim).cuda()
+            saved_weight = torch.load('saved-model/prof/pacs/base_regnet_True_2048_run0/best.pkl')
+            oracle_net.load_state_dict(saved_weight['cls_net'])
+            freeze("encoder",oracle_net)
+            oracle_net.oracle= True
+            oracle_opt = optim.Adam(oracle_net.parameters(), lr=lr)
         
         #Get Hooks (Currently only in resnet)
-        oracle_net.get_hook()
-        src_net.get_hook()
+        #oracle_net.get_hook()
+        #src_net.get_hook()
     
     #Mean, Variance Encoder
+    oracle_opt= None
     mean_encoders = None
     var_encoders = None
     ##########################################
@@ -284,7 +297,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 elif gen == 'stn':
                     x_tgt, H_tgt = g1_net(x, rand=True, return_H=True)
                     x2_tgt, H2_tgt = g1_net(x, rand=True, return_H=True)
-
+                
                 # forward
                 if (oracle == 'False'):
                     p1_src, z1_src = src_net(x, mode='train') #z1- torch.Size([128, 128])
@@ -292,19 +305,26 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 # oracle forward
                 if (oracle == 'True'):    
                     #if (tgt_epochs_fixg is not None) and (epoch >= tgt_epochs_fixg):  
-                    if flag_fixG: #only source
-                        if oracle_type == 'prof':
-                             
-                            p_oracle, h_oracle = oracle_net(x, mode= 'prof')  
-                            p1_src, z1_src, h_src = src_net(x, mode='prof')
-                              
-                        
-                        
+                    #torch.Size([16, 3, 224, 224])
+                    
+                    p_oracle, h_oracle = oracle_net(x, mode= 'prof')  
+                    p1_src, z1_src, h_src = src_net(x, mode='prof') 
+                    
+                    #erase to delete dummy method
+                    #dummy= torch.rand(batchsize,3,imsize[0],imsize[1]).cuda() #erase to delete dummy method(run224)
+                    #_, dummy_oracle = oracle_net(dummy, mode= 'prof') #erase to delete dummy method(run224)
+                    #_, _, dummy_src= src_net(dummy, mode= 'prof') #erase to delete dummy method(run224)
+                    
+                    '''
+                    if flag_fixG: #only source                             
+                        p_oracle, h_oracle = oracle_net(x, mode= 'prof')  #x -> dummy
+                        p1_src, z1_src, h_src = src_net(x, mode='prof') #x -> dummy
                     else: #both source,gen
                         #p1_src, z1_src = src_net(x, mode='train') #always awake
                         #always awake
-                        p_oracle, h_oracle = oracle_net(x, mode= 'prof')  
-                        p1_src, z1_src, h_src = src_net(x, mode='prof')
+                        p_oracle, h_oracle = oracle_net(x, mode= 'prof')  #x -> dummy
+                        p1_src, z1_src, h_src = src_net(x, mode='prof') #x -> dummy
+                    '''
                 
                 if len(g1_list)>0: # if generator exists
                     p2_src, z2_src = src_net(x2_src, mode='train') #z2- torch.Size([128, 128])
@@ -327,36 +347,43 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 con_loss = con_criterion(zall, adv=False)
                 
                 #oracle
+                if oracle == 'True':
+                    #oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_src.unsqueeze(1)], dim=1)
+                    
+                    #oracle_tensors= torch.cat([dummy_oracle.unsqueeze(1), dummy_src.unsqueeze(1)], dim=1) #erase to delete dummy method
+                    oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_src.unsqueeze(1)], dim=1)
+                    oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True) #Trying Std=False
+                    #T= 4.0# + (0.5 * epoch) 
+                    #oracle_loss += kl_loss(F.softmax(p1_src/T, dim=1).log(), F.softmax(p_oracle/T, dim=1)) * T *T # run2,4 has no T**2, #run 22,44 has T**2
+
+                    
+                '''
                 if (oracle == 'True') and flag_fixG: ##ADDED before meeting
                     #oracle_tensors are not normalized (dim=1).
-                    
-                    if oracle_type in ['prof']:
+                    oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_src.unsqueeze(1)], dim=1)
+                    oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True) #Trying Std=False
                         
                         
-                        #mutual information regularization
+                    #mutual information regularization
                         
-                        #mean = torch.mean(h_src)
-                        #var = torch.var(h_src)
-                        #vlb = (mean - h_oracle).pow(2).div(var) + var.log()
-                        #vlb = vlb.mean()/2.
-                        #oracle_loss= vlb
+                    #mean = torch.mean(h_src)
+                    #var = torch.var(h_src)
+                    #vlb = (mean - h_oracle).pow(2).div(var) + var.log()
+                    #vlb = vlb.mean()/2.
+                    #oracle_loss= vlb
                         
+                    #T= 10.0
+                    #oracle_loss = kl_loss(F.softmax(p1_src/T, dim=1).log(), F.softmax(p_oracle/T, dim=1)) * T *T # run2,4 has no T**2, #run 22,44 has T**2
                         
-                        oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_src.unsqueeze(1)], dim=1)
-                        oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True)
-                        
-                        #T= 10.0
-                        #oracle_loss = kl_loss(F.softmax(p1_src/T, dim=1).log(), F.softmax(p_oracle/T, dim=1)) * T *T # run2,4 has no T**2, #run 22,44 has T**2
-                        
-                        
-                     #standardize true showed better results
+
                 elif (oracle == 'True') and (not flag_fixG): #ADDED before meeting
                     #oracle_loss = torch.tensor(0)    #always awake 
-                    
                     #always awake
                     oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_src.unsqueeze(1)], dim=1)
-                    oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True)
+                    oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True) ##Trying Std=False
                     
+                    
+                '''
                 #Source Task Model Loss
                 loss = src_cls_loss + w_tgt*tgt_cls_loss + w_tgt*con_loss  
                 
@@ -367,7 +394,9 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     oracle_loss= torch.tensor(0)
                 
                 src_opt.zero_grad()
-                oracle_opt.zero_grad()
+                if oracle_opt:
+                    oracle_opt.zero_grad()
+                    
                 if flag_fixG:
                     loss.backward()
                 else:

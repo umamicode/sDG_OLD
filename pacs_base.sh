@@ -4,7 +4,7 @@
 
 # base method
 data=pacs #(mnist/cifar10/pacs)
-backbone=alexnet #(pacs_net/resnet18/resnet50/wideresnet/alexnet) 
+backbone=resnet18 #(pacs_net/resnet18/resnet50/wideresnet/alexnet) 
 pretrained=True
 projection_dim=512 #resnet18:512, alexnet=4096
 epochs=30 #default:5/200

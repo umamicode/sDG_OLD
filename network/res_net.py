@@ -35,23 +35,28 @@ class ConvNet(nn.Module):
         self.oracle= oracle
         self.selected_out = OrderedDict()
         self.fhooks=[]
+        self.buffer_features= 3024 #3024/7392
         
         # Replace the fc layer with an Identity function
         self.encoder.fc = Identity()
         
-        self.cls_head_src = nn.Linear(self.n_features, self.output_dim)
+        self.buffer = nn.Sequential(
+            nn.Linear(self.n_features, self.buffer_features, bias=False))
+        
+        
+        self.cls_head_src = nn.Linear(self.buffer_features, self.output_dim)
         
         #self.cls_head_tgt = nn.Linear(self.n_features, self.output_dim)        
         #[TODO]- MLP for Contrastive Learning -Following model design of BarlowTwins Paper
         
         self.pro_head = nn.Sequential(
-            nn.Linear(self.n_features, self.n_features, bias=False),  #self.n_features -> self.projection_dim
-            nn.BatchNorm1d(self.n_features),
+            nn.Linear(self.buffer_features, self.buffer_features, bias=False),  #self.n_features -> self.projection_dim
+            nn.BatchNorm1d(self.buffer_features),
             nn.ReLU(),
-            nn.Linear(self.n_features, self.n_features, bias=False),  #self.n_features -> self.projection_dim
-            nn.BatchNorm1d(self.n_features),
+            nn.Linear(self.buffer_features, self.buffer_features, bias=False),  #self.n_features -> self.projection_dim
+            nn.BatchNorm1d(self.buffer_features),
             nn.ReLU(),
-            nn.Linear(self.n_features, self.projection_dim, bias=False) #self.n_features,self.projection_dim -> self.projection_dim,self.projection_dim
+            nn.Linear(self.buffer_features, self.projection_dim, bias=False) #self.n_features,self.projection_dim -> self.projection_dim,self.projection_dim
         )
     
     def get_hook(self):   
@@ -79,6 +84,7 @@ class ConvNet(nn.Module):
         in_size = x.size(0)
         
         encoded= self.encoder(x)
+        encoded = self.buffer(encoded)
         if mode == 'test':
             p= self.cls_head_src(encoded)
             return p
@@ -96,10 +102,10 @@ class ConvNet(nn.Module):
         elif mode == 'encoder_intermediate':
             encoded = F.normalize(encoded) #this does not effect accuracy
             return encoded, self.selected_out
-        elif mode == 'oracle':
+        elif mode == 'prof':
             p= self.cls_head_src(encoded)
             z = self.pro_head(encoded)
             z = F.normalize(z)
             encoded = F.normalize(encoded)
-            return p, z, encoded, self.selected_out
+            return p, z, encoded
             
