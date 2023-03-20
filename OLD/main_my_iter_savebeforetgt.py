@@ -156,6 +156,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
     #PACS
     elif data in ['pacs']:
         if backbone == 'custom':
+            #NOT RECOMMENDED: PACS experiment was designed for Resnet Models
             raise ValueError('PLEASE USE Resnet-18/50/AlexNet For PACS')
         elif backbone in ['resnet18','resnet50','wideresnet']:
             encoder = get_resnet(backbone, pretrained) # Pretrained Backbone default as True
@@ -233,8 +234,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         #src_net.get_hook()
     
     #Mean, Variance Encoder
-    if oracle != 'True':
-        oracle_opt= None
+    oracle_opt= None
     mean_encoders = None
     var_encoders = None
     ##########################################
@@ -255,7 +255,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         for epoch in range(tgt_epochs):
             t1 = time.time()
             
-            # if flag_fixG = False, fix G / elif flag_fixG = True, update G
+            # if flag_fixG = False, locking G / flag_fixG = True, renew G
             flag_fixG = False
             if (tgt_epochs_fixg is not None) and (epoch >= tgt_epochs_fixg):
                 flag_fixG = True
@@ -299,21 +299,32 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     x2_tgt, H2_tgt = g1_net(x, rand=True, return_H=True)
                 
                 # forward
-                #Hypo
-                p1_src, z1_src, h_src = src_net(x, mode='prof') #unify
-                
-                #if (oracle == 'False'):
-                #    p1_src, z1_src = src_net(x, mode='train') #z1- torch.Size([128, 128])
+                if (oracle == 'False'):
+                    p1_src, z1_src = src_net(x, mode='train') #z1- torch.Size([128, 128])
                 
                 # oracle forward
                 if (oracle == 'True'):    
                     #if (tgt_epochs_fixg is not None) and (epoch >= tgt_epochs_fixg):  
                     
-                    #p_oracle, h_oracle = oracle_net(x, mode= 'prof')  
-                    #p1_src, z1_src, h_src = src_net(x, mode='prof') 
-                    #chicken night
-                    p_tgt_oracle, h_tgt_oracle = oracle_net(x_tgt, mode= 'prof')
+                    p_oracle, h_oracle = oracle_net(x, mode= 'prof')  
+                    p1_src, z1_src, h_src = src_net(x, mode='prof') 
+                    #p_tgt_oracle, h_tgt_oracle = oracle_net(x_tgt, mode= 'prof')
 
+                    #erase to delete dummy method
+                    #dummy= torch.rand(batchsize,3,imsize[0],imsize[1]).cuda() #erase to delete dummy method(run224)
+                    #_, dummy_oracle = oracle_net(dummy, mode= 'prof') #erase to delete dummy method(run224)
+                    #_, _, dummy_src= src_net(dummy, mode= 'prof') #erase to delete dummy method(run224)
+                    
+                    '''
+                    if flag_fixG: #only source                             
+                        p_oracle, h_oracle = oracle_net(x, mode= 'prof')  #x -> dummy
+                        p1_src, z1_src, h_src = src_net(x, mode='prof') #x -> dummy
+                    else: #both source,gen
+                        #p1_src, z1_src = src_net(x, mode='train') #always awake
+                        #always awake
+                        p_oracle, h_oracle = oracle_net(x, mode= 'prof')  #x -> dummy
+                        p1_src, z1_src, h_src = src_net(x, mode='prof') #x -> dummy
+                    '''
                 
                 if len(g1_list)>0: # if generator exists
                     p2_src, z2_src = src_net(x2_src, mode='train') #z2- torch.Size([128, 128])
@@ -325,16 +336,10 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
 
                 else:
                     zsrc = z1_src.unsqueeze(1)                       
-                    src_cls_loss = cls_criterion(p1_src, y) 
+                    src_cls_loss = cls_criterion(p1_src, y) #GCD
 
-                #p_tgt, z_tgt = src_net(x_tgt, mode='train')
-                p_tgt, z_tgt, h_tgt = src_net(x_tgt, mode= 'prof') #unify
-                if oracle == 'False':
-                    tgt_cls_loss = cls_criterion(p_tgt, y) 
-                
-                #chicken night
-                if (oracle == 'True'): 
-                    tgt_cls_loss = cls_criterion(p_tgt_oracle, y) 
+                p_tgt, z_tgt = src_net(x_tgt, mode='train')
+                tgt_cls_loss = cls_criterion(p_tgt, y) #[TODO] GCD
                                 
                 
                 # SRC-NET UPDATE
@@ -343,15 +348,45 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                 
                 #oracle
                 if oracle == 'True':
+                    #oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_src.unsqueeze(1)], dim=1)
                     
-                    #Feature Matching
-                    oracle_tensors= torch.cat([h_tgt_oracle.unsqueeze(1), h_tgt.unsqueeze(1)], dim=1)
+                    #oracle_tensors= torch.cat([dummy_oracle.unsqueeze(1), dummy_src.unsqueeze(1)], dim=1) #erase to delete dummy method
+                    oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_src.unsqueeze(1)], dim=1)
                     oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True) #Trying Std=False
                     
-                    #Logit Matching
-                    #T= 4.0
-                    #oracle_loss = kl_loss(F.softmax(p1_src/T, dim=1).log(), F.softmax(p_oracle/T, dim=1)) * T *T # run2,4 has no T**2, #run 22,44 has T**2
+                    
+                    
+                    #T= 4.0# + (0.5 * epoch) 
+                    #oracle_loss += kl_loss(F.softmax(p1_src/T, dim=1).log(), F.softmax(p_oracle/T, dim=1)) * T *T # run2,4 has no T**2, #run 22,44 has T**2
 
+                    
+                '''
+                if (oracle == 'True') and flag_fixG: ##ADDED before meeting
+                    #oracle_tensors are not normalized (dim=1).
+                    oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_src.unsqueeze(1)], dim=1)
+                    oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True) #Trying Std=False
+                        
+                        
+                    #mutual information regularization
+                        
+                    #mean = torch.mean(h_src)
+                    #var = torch.var(h_src)
+                    #vlb = (mean - h_oracle).pow(2).div(var) + var.log()
+                    #vlb = vlb.mean()/2.
+                    #oracle_loss= vlb
+                        
+                    #T= 10.0
+                    #oracle_loss = kl_loss(F.softmax(p1_src/T, dim=1).log(), F.softmax(p_oracle/T, dim=1)) * T *T # run2,4 has no T**2, #run 22,44 has T**2
+                        
+
+                elif (oracle == 'True') and (not flag_fixG): #ADDED before meeting
+                    #oracle_loss = torch.tensor(0)    #always awake 
+                    #always awake
+                    oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_src.unsqueeze(1)], dim=1)
+                    oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True) ##Trying Std=False
+                    
+                    
+                '''
                 #Source Task Model Loss
                 loss = src_cls_loss + w_tgt*tgt_cls_loss + w_tgt*con_loss  
                 
@@ -401,6 +436,13 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                         loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss + w_info*con_loss_adv
                     elif loss_fn == 'supcon':
                         loss = w_cls*tgt_cls_loss - w_div*div_loss + w_cyc*cyc_loss + w_info*con_loss_adv
+                    '''
+                    - Error: RuntimeError: one of the variables needed for gradient computation
+                    has been modified by an inplace operation: [torch.cuda.FloatTensor [128, 128]], 
+                    which is output 0 of AsStridedBackward0, is at version 3; expected version 2 instead.
+                    - Problem: both tgt_cls_loss and con_loss_adv is causing the problem
+                    - Solution: step() at once. 
+                    '''
                     
                     g1_opt.zero_grad()
                     if g2_opt is not None:
@@ -414,7 +456,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                         g2_opt.step()
                         
                 #oracle_update
-                oracle_opt.step()
+                #oracle_opt.step()
                  
                 # update learning rate
                 if lr_scheduler in ['cosine']:

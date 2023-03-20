@@ -19,7 +19,7 @@ class MdarLoss(nn.Module):
         self.lmda= lmda
         self.lmda_task= lmda_task
 
-    def forward(self, features, labels=None, mask=None, adv=False, standardize = True):
+    def forward(self, features, labels=None, mask=None, adv=False, standardize = True, prof=None):
         """ 
         [MdarLoss]
 
@@ -107,12 +107,15 @@ class MdarLoss(nn.Module):
                 for q,contrast_feature in enumerate(anchor_contrast_feature):
                     if p != q: #og
                         # normalize repr. along the batch dimension
+                        anchor_save= anchor_feature #prof
                         if standardize:
                             #standardization (added 1e-6 so that nan does not appear)
                             anchor_feature= (anchor_feature - anchor_feature.mean(0)) / (anchor_feature.std(0)+ 1e-6) #torch.Size([256, 128])
                             contrast_feature = (contrast_feature - contrast_feature.mean(0)) / (contrast_feature.std(0) +1e-6)  #torch
                         if not standardize:
                             pass
+                        if prof: #prof
+                            anchor_feature= anchor_save
                         
                         c= torch.matmul(anchor_feature.T, contrast_feature) 
                         c.div_(batch_size)

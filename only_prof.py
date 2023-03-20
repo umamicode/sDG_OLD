@@ -233,8 +233,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
         #src_net.get_hook()
     
     #Mean, Variance Encoder
-    if oracle != 'True':
-        oracle_opt= None
+    oracle_opt= None
     mean_encoders = None
     var_encoders = None
     ##########################################
@@ -299,20 +298,17 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                     x2_tgt, H2_tgt = g1_net(x, rand=True, return_H=True)
                 
                 # forward
-                #Hypo
-                p1_src, z1_src, h_src = src_net(x, mode='prof') #unify
-                
-                #if (oracle == 'False'):
-                #    p1_src, z1_src = src_net(x, mode='train') #z1- torch.Size([128, 128])
+                if (oracle == 'False'):
+                    p1_src, z1_src = src_net(x, mode='train') #z1- torch.Size([128, 128])
                 
                 # oracle forward
                 if (oracle == 'True'):    
                     #if (tgt_epochs_fixg is not None) and (epoch >= tgt_epochs_fixg):  
                     
-                    #p_oracle, h_oracle = oracle_net(x, mode= 'prof')  
-                    #p1_src, z1_src, h_src = src_net(x, mode='prof') 
+                    p_oracle, h_oracle = oracle_net(x, mode= 'prof')  
+                    p1_src, z1_src, h_src = src_net(x, mode='prof') 
                     #chicken night
-                    p_tgt_oracle, h_tgt_oracle = oracle_net(x_tgt, mode= 'prof')
+                    #p_tgt_oracle, _ = oracle_net(x_tgt, mode= 'prof')
 
                 
                 if len(g1_list)>0: # if generator exists
@@ -325,28 +321,26 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
 
                 else:
                     zsrc = z1_src.unsqueeze(1)                       
-                    src_cls_loss = cls_criterion(p1_src, y) 
+                    src_cls_loss = cls_criterion(p1_src, y) #GCD
 
-                #p_tgt, z_tgt = src_net(x_tgt, mode='train')
-                p_tgt, z_tgt, h_tgt = src_net(x_tgt, mode= 'prof') #unify
-                if oracle == 'False':
-                    tgt_cls_loss = cls_criterion(p_tgt, y) 
+                p_tgt, z_tgt = src_net(x_tgt, mode='train')
+                tgt_cls_loss = cls_criterion(p_tgt, y) #[TODO] GCD
                 
                 #chicken night
-                if (oracle == 'True'): 
-                    tgt_cls_loss = cls_criterion(p_tgt_oracle, y) 
+                #if (oracle == 'True'): 
+                #    tgt_cls_loss = cls_criterion(p_tgt_oracle, y) 
                                 
                 
                 # SRC-NET UPDATE
                 zall = torch.cat([z_tgt.unsqueeze(1), zsrc], dim=1) #OG
-                con_loss = con_criterion(zall, adv=False)
+                con_loss = torch.tensor(0)
                 
                 #oracle
                 if oracle == 'True':
                     
                     #Feature Matching
-                    oracle_tensors= torch.cat([h_tgt_oracle.unsqueeze(1), h_tgt.unsqueeze(1)], dim=1)
-                    oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True) #Trying Std=False
+                    oracle_tensors= torch.cat([h_oracle.unsqueeze(1), h_src.unsqueeze(1)], dim=1)
+                    oracle_loss = con_criterion(oracle_tensors, adv=False, standardize= True, prof= True) #Trying Std=False
                     
                     #Logit Matching
                     #T= 4.0
@@ -414,7 +408,7 @@ def experiment(gpu, data, ntr, gen, gen_mode, \
                         g2_opt.step()
                         
                 #oracle_update
-                oracle_opt.step()
+                #oracle_opt.step()
                  
                 # update learning rate
                 if lr_scheduler in ['cosine']:
